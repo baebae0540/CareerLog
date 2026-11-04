@@ -1,0 +1,20 @@
+allowBuilds:
+  esbuild: true
+  sharp: false
+  unrs-resolver: false
+
+# Next.js 16.4.5는 RCE 패치 버전이라 배포 직후지만 사용한다 (HANDOFF 3장).
+# 2026-11-06 이후엔 기본 정책을 통과하므로 이 예외는 지워도 된다.
+minimumReleaseAgeExclude:
+  - next@16.4.5
+  - eslint-config-next@16.4.5
+  - '@next/env@16.4.5'
+  - '@next/eslint-plugin-next@16.4.5'
+  - '@next/swc-darwin-arm64@16.4.5'
+  - '@next/swc-darwin-x64@16.4.5'
+  - '@next/swc-linux-arm64-gnu@16.4.5'
+  - '@next/swc-linux-arm64-musl@16.4.5'
+  - '@next/swc-linux-x64-gnu@16.4.5'
+  - '@next/swc-linux-x64-musl@16.4.5'
+  - '@next/swc-win32-arm64-msvc@16.4.5'
+  - '@next/swc-win32-x64-msvc@16.4.5'
