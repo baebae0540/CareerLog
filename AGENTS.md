@@ -66,14 +66,21 @@ dev 서버가 남아 있으면(포트 3000 사용 중): 맥 `lsof -ti tcp:3000 |
 
 배포: `main`에 push하면 Vercel이 자동으로 배포한다. 스키마를 바꿨으면 **배포 전에** `pnpm db:migrate`를 돌린다 (로컬과 운영이 같은 Neon DB를 쓴다).
 
+## 배포 정보
+
+- 주소: https://careerlog-tau.vercel.app
+- Vercel: GitHub `baebae0540/CareerLog`의 `main`에 push하면 자동 배포. 함수 리전 sin1(싱가포르)
+- Neon: 프로젝트 `CareerLog`, 브랜치 `production`, DB `neondb`, AWS Singapore. 로컬과 운영이 **같은 DB**를 쓴다
+- 환경 변수 3개(`DATABASE_URL`, `APP_PASSWORD`, `SESSION_SECRET`)는 Vercel Settings와 `.env.local`에 각각 있다
+
 ## 현재 상태
 
 - 2026-11-05: 기획 확정 (PLAN.md).
-- 2026-11-05: 0단계 코드 완료. Next.js 16.4.5 프로젝트, 비밀번호 로그인(HttpOnly JWT 쿠키, 30일), proxy, DB 스키마와 첫 마이그레이션, vitest 5개. 로컬에서 빌드와 리다이렉트 동작 확인.
+- 2026-11-05: 0단계 코드 완료. Next.js 16.4.5 프로젝트, 비밀번호 로그인(HttpOnly JWT 쿠키, 30일), proxy, DB 스키마와 첫 마이그레이션, vitest 5개.
+- 2026-11-06: **0단계 완료.** Neon 마이그레이션 적용, Vercel 첫 배포. 배포 주소에서 리다이렉트·로그인 화면 확인.
 
 ## 다음 할 일
 
-- [ ] 0단계 마무리 (개발자): Neon DB 생성 → `.env.local` 작성 → `pnpm db:migrate` → Vercel에 저장소 연결 + 환경 변수 3개 등록 → 배포 주소에서 로그인 확인
 - [ ] 1단계: 구직활동 등록 (목록·등록·상세·수정·삭제). 등록 시 첫 상태 이력도 기록
 - [ ] 2단계: 진행 상황 업데이트 (`changeStatus`, 일정)
 - [ ] 3단계: 주간 모니터링
