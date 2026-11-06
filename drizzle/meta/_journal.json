@@ -15,6 +15,13 @@
       "when": 1793946872943,
       "tag": "0001_status_changed_on",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793980405612,
+      "tag": "0002_event_all_day",
+      "breakpoints": true
     }
   ]
 }

@@ -1,10 +1,10 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db";
-import { applications } from "@/db/schema";
+import { applications, events } from "@/db/schema";
 import {
   changeStatusWithHistory,
   deleteLatestHistoryEntry,
@@ -20,6 +20,7 @@ import {
   type StatusChangeFormState,
 } from "@/lib/application-input";
 import { todayInSeoul } from "@/lib/dates";
+import { parseEventForm, type EventFormState } from "@/lib/event-input";
 import { requireLogin } from "@/lib/session";
 
 /** 상태 변경. 상태는 이 액션으로만 바꾼다 (이력 기록이 한 곳에 있도록, AGENTS.md 규칙). */
@@ -115,4 +116,67 @@ export async function deleteApplication(id: number) {
   await getDb().delete(applications).where(eq(applications.id, id));
   revalidatePath("/");
   redirect("/");
+}
+
+// ── 일정 ──────────────────────────────────────────────
+
+function revalidateApplication(applicationId: number) {
+  revalidatePath("/");
+  revalidatePath(`/applications/${applicationId}`);
+}
+
+const eventOf = (applicationId: number, eventId: number) =>
+  and(eq(events.id, eventId), eq(events.applicationId, applicationId));
+
+export async function createEvent(
+  applicationId: number,
+  _prev: EventFormState,
+  formData: FormData,
+): Promise<EventFormState> {
+  await requireLogin();
+  const parsed = parseEventForm(formData);
+  if (!parsed.ok) return parsed.state;
+
+  const [app] = await getDb()
+    .select({ id: applications.id })
+    .from(applications)
+    .where(eq(applications.id, applicationId));
+  if (!app) return { message: "이미 삭제된 지원 건입니다." };
+
+  await getDb().insert(events).values({ applicationId, ...parsed.data });
+  revalidateApplication(applicationId);
+  return { savedAt: Date.now() };
+}
+
+export async function updateEvent(
+  applicationId: number,
+  eventId: number,
+  _prev: EventFormState,
+  formData: FormData,
+): Promise<EventFormState> {
+  await requireLogin();
+  const parsed = parseEventForm(formData);
+  if (!parsed.ok) return parsed.state;
+
+  const updated = await getDb()
+    .update(events)
+    .set(parsed.data)
+    .where(eventOf(applicationId, eventId))
+    .returning({ id: events.id });
+  if (updated.length === 0) return { message: "이미 삭제된 일정입니다." };
+
+  revalidateApplication(applicationId);
+  return { savedAt: Date.now() };
+}
+
+export async function setEventDone(applicationId: number, eventId: number, done: boolean) {
+  await requireLogin();
+  await getDb().update(events).set({ done }).where(eventOf(applicationId, eventId));
+  revalidateApplication(applicationId);
+}
+
+export async function deleteEvent(applicationId: number, eventId: number) {
+  await requireLogin();
+  await getDb().delete(events).where(eventOf(applicationId, eventId));
+  revalidateApplication(applicationId);
 }

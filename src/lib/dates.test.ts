@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatDateTime, formatYmd, isValidYmd, todayInSeoul } from "./dates";
+import { daysBetween, dDayLabel, formatDateTime, formatYmd, isValidYmd, seoulDateTime, seoulParts, todayInSeoul } from "./dates";
 
 describe("todayInSeoul", () => {
   it("UTC로는 전날이어도 한국 날짜를 돌려준다", () => {
@@ -32,5 +32,23 @@ describe("표시 형식", () => {
   });
   it("formatDateTime은 한국 시간으로 보여준다", () => {
     expect(formatDateTime(new Date("2026-11-05T15:30:00Z"))).toBe("2026.11.06 (금) 00:30");
+  });
+});
+
+describe("일정 시각", () => {
+  it("seoulDateTime은 한국 시간으로 해석한다", () => {
+    expect(seoulDateTime("2026-11-10", "09:30").toISOString()).toBe("2026-11-10T00:30:00.000Z");
+    expect(seoulDateTime("2026-11-10").toISOString()).toBe("2026-11-09T15:00:00.000Z");
+  });
+  it("seoulParts는 seoulDateTime을 되돌린다", () => {
+    expect(seoulParts(seoulDateTime("2026-11-10", "23:59"))).toEqual({ ymd: "2026-11-10", time: "23:59" });
+    expect(seoulParts(seoulDateTime("2026-11-10"))).toEqual({ ymd: "2026-11-10", time: "00:00" });
+  });
+  it("dDayLabel", () => {
+    expect(dDayLabel("2026-11-07", "2026-11-07")).toBe("오늘");
+    expect(dDayLabel("2026-11-07", "2026-11-10")).toBe("D-3");
+    expect(dDayLabel("2026-11-07", "2026-11-06")).toBe("지남");
+    expect(dDayLabel("2026-12-30", "2027-01-02")).toBe("D-3"); // 해 넘김
+    expect(daysBetween("2028-02-28", "2028-03-01")).toBe(2); // 윤년
   });
 });

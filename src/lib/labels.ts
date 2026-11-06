@@ -35,9 +35,20 @@ export const STATUS_BADGE_CLASS: Record<ApplicationStatus, string> = {
   on_hold: "bg-zinc-100 text-zinc-500 line-through dark:bg-zinc-800 dark:text-zinc-400",
 };
 
+/** 일정 종류 표시 순서 */
+export const EVENT_KIND_ORDER: EventKind[] = ["interview", "assignment", "deadline", "other"];
+
 export const EVENT_KIND_LABEL: Record<EventKind, string> = {
   interview: "면접",
   assignment: "과제",
   deadline: "마감",
   other: "기타",
+};
+
+// 일정 종류 색: 면접 파랑, 과제 보라, 마감 주황, 기타 회색
+export const EVENT_KIND_BADGE_CLASS: Record<EventKind, string> = {
+  interview: "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
+  assignment: "bg-violet-50 text-violet-700 dark:bg-violet-950 dark:text-violet-300",
+  deadline: "bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-300",
+  other: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300",
 };

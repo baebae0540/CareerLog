@@ -49,12 +49,15 @@ src/
   lib/session.ts        쿠키 발급·삭제, requireLogin()
   lib/application-input.ts  폼 검증 (zod, 테스트 있음)
   lib/dates.ts          한국 시간 날짜 계산·표시 (테스트 있음)
+  lib/event-input.ts    일정 폼 검증, 시간 입력 정규화 (테스트 있음)
   lib/labels.ts         상태·일정 종류의 한국어 이름과 색
   components/           폼·배지·삭제 버튼, 공통 클래스(ui.ts)
     field.tsx           Field(라벨·입력·안내 줄), FormSection — 새 폼은 이것으로 만든다
     select.tsx          선택 상자 (네이티브 <select> 대신 이것을 쓴다)
     date-picker.tsx     날짜 선택 (네이티브 type="date" 대신 이것을 쓴다). 값은 YYYY-MM-DD, today는 서버에서 넘긴다
     suggest-input.tsx   자유 입력 + 제안 목록 (datalist 대신)
+    event-form.tsx      일정 추가·수정 폼 (EventAddForm은 버튼으로 펼침)
+    event-item.tsx      일정 한 줄 (완료 표시·수정·삭제)
   app/login/            로그인 화면·액션
   app/(app)/            로그인 후 화면 (layout에서 requireLogin)
     page.tsx            지원 목록 (/?status=로 필터)
@@ -110,12 +113,18 @@ dev 서버가 남아 있으면(포트 3000 사용 중): 맥 `lsof -ti tcp:3000 |
   - 오류 문구 조사를 받침에 맞게 고쳤다 (회사를/포지션을).
   - headless Chrome으로 등록→상태 변경→이력 수정·삭제→지원 건 삭제까지 확인. 브라우저 오류 없음.
 
+- 2026-11-07: **2단계 코드 완료 (일정).** 상세 화면에 일정 카드: 추가·수정·삭제·완료 표시, D-day.
+  - 시간은 선택 입력. 비우면 "시간 미정"(`events.all_day = true`, `starts_at`은 그날 00:00 KST). `14:00`·`930`·`1400` 등을 받아 `HH:MM`으로 정규화.
+  - 제목을 비우면 종류 이름(면접·과제·마감·기타)으로 저장.
+  - 마이그레이션 0002(`events.all_day` 추가). **적용 전에는 상세 화면이 오류가 난다** (조회에 새 칼럼 포함). 테스트 34개.
+
 ## 다음 할 일
 
 - [x] 마이그레이션 0001 적용 (개발자), `changeStatusWithHistory` 실제 DB 검증 완료
 - 마이그레이션은 개발자가 `pnpm db:migrate`로 적용한다 (자동 승인 정책상 에이전트는 운영 DB 스키마를 바꾸지 않는다). 적용 전에 push하지 않는다
 - [ ] 1단계 확인 (개발자): 로컬·배포 주소에서 등록 → 상태 변경 → 수정 → 삭제
-- [ ] 2단계: 진행 상황 업데이트 (`changeStatus`, 일정)
+- [ ] 마이그레이션 0002 적용 (개발자 `pnpm db:migrate`) → 브라우저로 일정 추가(시간 있음/없음)·수정·완료·삭제 확인 → push
+- [x] 2단계: 진행 상황 업데이트 (`changeStatus`, 일정) — 코드 완료
 - [ ] 3단계: 주간 모니터링
 
 <!-- BEGIN:nextjs-agent-rules -->

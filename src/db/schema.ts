@@ -87,6 +87,8 @@ export const events = pgTable(
     kind: eventKind("kind").notNull().default("other"),
     title: text("title").notNull(),
     startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    // 시간 미정 (날짜만 정해짐). 이때 starts_at은 그날 00:00 한국 시간
+    allDay: boolean("all_day").notNull().default(false),
     memo: text("memo"),
     done: boolean("done").notNull().default(false),
     createdAt: timestamps.createdAt,

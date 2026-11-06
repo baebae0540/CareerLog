@@ -11,7 +11,7 @@ function josa(word: string, a: string, b: string) {
 const tooLong = (label: string, max: number) => `${label}${josa(label, "은", "는")} ${max}자 이하로 입력하세요`;
 
 /** 빈 문자열은 null로 바꾸는 선택 입력 */
-const optionalText = (max: number, label: string) =>
+export const optionalText = (max: number, label: string) =>
   z
     .string()
     .trim()

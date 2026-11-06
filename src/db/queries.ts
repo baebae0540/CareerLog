@@ -1,7 +1,7 @@
 import "server-only";
 import { asc, count, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { applications, statusChanges, type ApplicationStatus } from "@/db/schema";
+import { applications, events, statusChanges, type ApplicationStatus } from "@/db/schema";
 
 export async function listApplications(status?: ApplicationStatus) {
   return getDb()
@@ -34,4 +34,13 @@ export async function getStatusHistory(applicationId: number) {
     .where(eq(statusChanges.applicationId, applicationId))
     // 기록한 순서대로 (변경일을 과거로 고를 수 있어서 변경일 순이면 흐름이 뒤집힐 수 있다)
     .orderBy(asc(statusChanges.changedAt), asc(statusChanges.id));
+}
+
+/** 지원 건의 일정 (시각 순) */
+export async function getEvents(applicationId: number) {
+  return getDb()
+    .select()
+    .from(events)
+    .where(eq(events.applicationId, applicationId))
+    .orderBy(asc(events.startsAt), asc(events.id));
 }

@@ -1,22 +1,33 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getApplication, getStatusHistory } from "@/db/queries";
+import { getApplication, getEvents, getStatusHistory } from "@/db/queries";
 import { DeleteForm } from "@/components/delete-button";
+import { EventAddForm } from "@/components/event-form";
+import { EventItem } from "@/components/event-item";
 import { HistoryItem } from "@/components/history-item";
 import { StatusBadge } from "@/components/status-badge";
 import { StatusChangeForm } from "@/components/status-change-form";
 import { cardClass, secondaryButtonClass } from "@/components/ui";
 import { isBeforeApplying, parseId } from "@/lib/application-input";
-import { formatDateTime, formatYmd, todayInSeoul } from "@/lib/dates";
+import { formatDateTime, formatYmd, seoulParts, todayInSeoul } from "@/lib/dates";
 import { requireLogin } from "@/lib/session";
-import { changeStatus, deleteApplication, deleteHistory, updateHistory } from "../actions";
+import {
+  changeStatus,
+  createEvent,
+  deleteApplication,
+  deleteEvent,
+  deleteHistory,
+  setEventDone,
+  updateEvent,
+  updateHistory,
+} from "../actions";
 
 export default async function ApplicationDetailPage(props: PageProps<"/applications/[id]">) {
   await requireLogin();
   const id = parseId((await props.params).id);
   if (!id) notFound();
 
-  const [app, history] = await Promise.all([getApplication(id), getStatusHistory(id)]);
+  const [app, history, events] = await Promise.all([getApplication(id), getStatusHistory(id), getEvents(id)]);
   if (!app) notFound();
   const today = todayInSeoul();
   const latestId = history.at(-1)?.id;
@@ -68,6 +79,34 @@ export default async function ApplicationDetailPage(props: PageProps<"/applicati
             </Item>
           </div>
         </dl>
+      </div>
+
+      <div className={cardClass}>
+        <div className="p-5 sm:p-6">
+          <h2 className="mb-4 text-sm font-semibold">일정</h2>
+          <div className="flex flex-col gap-4">
+            {events.length > 0 ? (
+              <ul className="flex flex-col gap-4">
+                {events.map((e) => {
+                  const { ymd, time } = seoulParts(e.startsAt);
+                  return (
+                    <EventItem
+                      key={e.id}
+                      entry={{ kind: e.kind, title: e.title, ymd, time: e.allDay ? null : time, memo: e.memo, done: e.done }}
+                      today={today}
+                      updateAction={updateEvent.bind(null, app.id, e.id)}
+                      toggleDoneAction={setEventDone.bind(null, app.id, e.id, !e.done)}
+                      deleteAction={deleteEvent.bind(null, app.id, e.id)}
+                    />
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className="text-sm text-zinc-400">등록된 일정이 없습니다.</p>
+            )}
+            <EventAddForm action={createEvent.bind(null, app.id)} today={today} />
+          </div>
+        </div>
       </div>
 
       <div className={`${cardClass} divide-y divide-zinc-200 dark:divide-zinc-800`}>
