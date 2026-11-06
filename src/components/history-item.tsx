@@ -7,6 +7,7 @@ import type { StatusChangeFormState } from "@/lib/application-input";
 import { formatYmd } from "@/lib/dates";
 import { STATUS_LABEL } from "@/lib/labels";
 import { DatePicker } from "./date-picker";
+import { useFieldErrors } from "./use-field-errors";
 import { inputClass, linkButtonClass, primaryButtonClass, secondaryButtonClass } from "./ui";
 
 type Entry = {
@@ -104,18 +105,20 @@ function EditForm({
     if (next.savedAt) onDone();
     return next;
   }, {});
-  const error = state.message ?? state.errors?.changedOn ?? state.errors?.note;
+  const { errors, clear, onInput } = useFieldErrors(state.errors);
+  const error = state.message ?? errors.changedOn ?? errors.note;
 
   return (
-    <form action={formAction} className="flex flex-col gap-2 rounded-lg bg-zinc-50 p-3 dark:bg-zinc-900">
+    <form action={formAction} onInput={onInput} className="flex flex-col gap-2 rounded-lg bg-zinc-50 p-3 dark:bg-zinc-900">
       <p className="text-sm font-medium">
         {entry.fromStatus ? `${STATUS_LABEL[entry.fromStatus]} → ` : ""}
         {STATUS_LABEL[entry.toStatus]}
         {!entry.fromStatus && " 상태로 등록"}
       </p>
       <div className="grid gap-2 sm:grid-cols-[12rem_1fr]">
-        <DatePicker name="changedOn" defaultValue={entry.changedOn} today={today} invalid={!!state.errors?.changedOn} />
-        <input name="note" defaultValue={entry.note ?? ""} maxLength={1000} placeholder="메모 (선택)" className={inputClass} />
+        <DatePicker name="changedOn" defaultValue={entry.changedOn} today={today}
+          onChange={() => clear("changedOn")} invalid={!!errors.changedOn} />
+        <input name="note" defaultValue={entry.note ?? ""} maxLength={1000} placeholder="메모 (선택)" aria-invalid={!!errors.note} className={inputClass} />
       </div>
       {error && <p role="alert" className="text-xs text-red-600 dark:text-red-400">{error}</p>}
       <div className="flex justify-end gap-2">

@@ -7,6 +7,7 @@ import { STATUS_LABEL, STATUS_ORDER } from "@/lib/labels";
 import { DatePicker } from "./date-picker";
 import { Field } from "./field";
 import { Select } from "./select";
+import { useFieldErrors } from "./use-field-errors";
 import { inputClass, primaryButtonClass } from "./ui";
 
 type Props = {
@@ -24,12 +25,12 @@ function suggestNext(current: ApplicationStatus): ApplicationStatus {
 
 export function StatusChangeForm({ action, currentStatus, today }: Props) {
   const [state, formAction, pending] = useActionState(action, {});
-  const errors = state.errors ?? {};
+  const { errors, clear, onInput } = useFieldErrors(state.errors);
   const options = STATUS_ORDER.filter((s) => s !== currentStatus).map((s) => ({ value: s, label: STATUS_LABEL[s] }));
 
   return (
     // 성공하면(savedAt 변경) 새 현재 상태 기준으로 폼을 다시 그린다
-    <form key={`${currentStatus}-${state.savedAt ?? 0}`} action={formAction} className="flex flex-col gap-1">
+    <form key={`${currentStatus}-${state.savedAt ?? 0}`} action={formAction} onInput={onInput} className="flex flex-col gap-1">
       {state.message && (
         <p role="alert" className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
           {state.message}
@@ -37,10 +38,12 @@ export function StatusChangeForm({ action, currentStatus, today }: Props) {
       )}
       <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2">
         <Field htmlFor="toStatus" label="바꿀 상태" error={errors.toStatus}>
-          <Select id="toStatus" name="toStatus" options={options} defaultValue={suggestNext(currentStatus)} invalid={!!errors.toStatus} />
+          <Select id="toStatus" name="toStatus" options={options} defaultValue={suggestNext(currentStatus)}
+            onValueChange={() => clear("toStatus")} invalid={!!errors.toStatus} />
         </Field>
         <Field htmlFor="changedOn" label="변경일" error={errors.changedOn}>
-          <DatePicker id="changedOn" name="changedOn" defaultValue={today} today={today} invalid={!!errors.changedOn} />
+          <DatePicker id="changedOn" name="changedOn" defaultValue={today} today={today}
+            onChange={() => clear("changedOn")} invalid={!!errors.changedOn} />
         </Field>
         <Field htmlFor="note" label="메모" error={errors.note} className="sm:col-span-2">
           <input id="note" name="note" maxLength={1000} placeholder="선택 · 예: 1차 면접 합격 연락"

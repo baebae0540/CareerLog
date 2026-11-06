@@ -9,6 +9,7 @@ import { DatePicker } from "./date-picker";
 import { Field, FormSection } from "./field";
 import { Select } from "./select";
 import { SuggestInput } from "./suggest-input";
+import { useFieldErrors } from "./use-field-errors";
 import { cardClass, inputClass, primaryButtonClass, secondaryButtonClass, textareaClass } from "./ui";
 
 const SOURCE_SUGGESTIONS = ["원티드", "사람인", "잡코리아", "링크드인", "리멤버", "점핏", "회사 홈페이지", "지인 추천", "헤드헌터"];
@@ -51,7 +52,8 @@ function FormBody({
   today,
   currentStatus,
 }: Props & { values: Partial<Record<FormField, string>>; state: ApplicationFormState; pending: boolean }) {
-  const errors = state.errors ?? {};
+  // 입력을 시작한 칸의 오류는 바로 지운다
+  const { errors, clear, onInput } = useFieldErrors(state.errors);
   // 상태와 지원일은 서로 영향을 주므로 직접 관리한다
   const [status, setStatus] = useState((values.status as ApplicationStatus | undefined) ?? currentStatus);
   const [appliedAt, setAppliedAt] = useState(values.appliedAt ?? "");
@@ -59,12 +61,14 @@ function FormBody({
 
   function onStatusChange(next: ApplicationStatus) {
     setStatus(next);
+    clear("status");
+    clear("appliedAt");
     // 지원 이후 단계를 고르면 비어 있는 지원일을 오늘로 채운다
     if (next !== "interested" && !appliedAt) setAppliedAt(today);
   }
 
   return (
-    <div className={`${cardClass} divide-y divide-zinc-200 dark:divide-zinc-800`}>
+    <div onInput={onInput} className={`${cardClass} divide-y divide-zinc-200 dark:divide-zinc-800`}>
       {state.message && (
         <p role="alert" className="rounded-t-xl bg-red-50 px-6 py-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
           {state.message}
@@ -106,7 +110,10 @@ function FormBody({
           >
             {/* 관심이면 비활성화: 비활성 입력은 전송되지 않아 지원일이 비워진다 */}
             <DatePicker id="appliedAt" name="appliedAt" today={today} clearable
-              value={beforeApplying ? "" : appliedAt} onChange={setAppliedAt}
+              value={beforeApplying ? "" : appliedAt} onChange={(v) => {
+                setAppliedAt(v);
+                clear("appliedAt");
+              }}
               disabled={beforeApplying} placeholder={beforeApplying ? "지원 전" : "날짜 선택"}
               invalid={!!errors.appliedAt} />
           </Field>
