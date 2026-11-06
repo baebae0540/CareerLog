@@ -66,3 +66,44 @@ export function dDayLabel(today: string, ymd: string): string {
   if (n === 0) return "오늘";
   return n > 0 ? `D-${n}` : "지남";
 }
+
+// ---- 주 계산 (일요일 시작) ----
+
+function ymdToUtc(ymd: string): Date {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d));
+}
+
+function utcToYmd(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+/** 날짜 더하기 (n이 음수면 빼기) */
+export function addDays(ymd: string, n: number): string {
+  const date = ymdToUtc(ymd);
+  date.setUTCDate(date.getUTCDate() + n);
+  return utcToYmd(date);
+}
+
+/** 그 날짜가 들어 있는 주의 일요일 */
+export function weekStart(ymd: string): string {
+  return addDays(ymd, -ymdToUtc(ymd).getUTCDay());
+}
+
+/** 주 시작(일요일)부터 토요일까지 7개 날짜 */
+export function weekDays(start: string): string[] {
+  return Array.from({ length: 7 }, (_, i) => addDays(start, i));
+}
+
+/** 요일 이름 ("일" ~ "토") */
+export function weekdayName(ymd: string): string {
+  return WEEKDAYS[ymdToUtc(ymd).getUTCDay()];
+}
+
+/** 주 범위 표시: "2026.11.01 – 11.07". 연도가 바뀌면 끝 날짜에도 연도를 붙인다 */
+export function formatWeekRange(start: string): string {
+  const end = addDays(start, 6);
+  const head = start.replaceAll("-", ".");
+  const tail = end.slice(0, 4) === start.slice(0, 4) ? end.slice(5).replace("-", ".") : end.replaceAll("-", ".");
+  return `${head} – ${tail}`;
+}

@@ -57,8 +57,14 @@ export function changeStatusWithHistory(applicationId: number, input: StatusChan
  * 이 이력이 지원일을 정한 이력(첫 등록 또는 관심에서 넘어온 변경)이고
  * 지원일이 이 이력의 변경일과 같으면, 지원일도 새 날짜로 맞춘다.
  */
-export function updateHistoryEntry(applicationId: number, historyId: number, input: HistoryEditInput) {
+export function updateHistoryEntry(
+  applicationId: number,
+  historyId: number,
+  // note를 빼면(undefined) 메모는 그대로 둔다 (주간 화면에서 날짜만 옮길 때)
+  input: Pick<HistoryEditInput, "changedOn"> & { note?: HistoryEditInput["note"] },
+) {
   const on = sql`${input.changedOn}::date`;
+  const note = input.note === undefined ? sql`sc.note` : sql`${input.note}::text`;
   return sql`
     with old as (
       select id, application_id, from_status, to_status, changed_on
@@ -77,7 +83,7 @@ export function updateHistoryEntry(applicationId: number, historyId: number, inp
       returning a.id
     )
     update status_changes sc
-    set changed_on = ${on}, note = ${input.note}::text
+    set changed_on = ${on}, note = ${note}
     from old
     where sc.id = old.id
     returning sc.id`;
@@ -114,4 +120,34 @@ export function deleteLatestHistoryEntry(applicationId: number, historyId: numbe
     delete from status_changes
     where id in (select id from target) and exists (select 1 from reverted)
     returning id`;
+}
+
+/**
+ * 지원일 옮기기 (주간 화면 드래그). 결과 행: { id }
+ * 지원일을 정한 이력(첫 등록 또는 관심에서 넘어온 변경)의 변경일도 같이 옮긴다
+ * (updateHistoryEntry의 반대 방향 동기화). 지원 전(관심)이거나 지원일이 없으면 아무것도 바꾸지 않는다.
+ */
+export function moveAppliedDate(applicationId: number, ymd: string) {
+  const on = sql`${ymd}::date`;
+  return sql`
+    with app as (
+      select id, applied_at
+      from applications
+      where id = ${applicationId} and status <> 'interested' and applied_at is not null
+    ),
+    synced as (
+      update status_changes sc
+      set changed_on = ${on}
+      from app
+      where sc.application_id = app.id
+        and sc.to_status <> 'interested'
+        and (sc.from_status is null or sc.from_status = 'interested')
+        and sc.changed_on = app.applied_at
+      returning sc.id
+    )
+    update applications a
+    set applied_at = ${on}, updated_at = now()
+    from app
+    where a.id = app.id
+    returning a.id`;
 }

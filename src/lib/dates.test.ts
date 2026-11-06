@@ -1,5 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { daysBetween, dDayLabel, formatDateTime, formatYmd, isValidYmd, seoulDateTime, seoulParts, todayInSeoul } from "./dates";
+import {
+  addDays,
+  daysBetween,
+  dDayLabel,
+  formatDateTime,
+  formatWeekRange,
+  formatYmd,
+  isValidYmd,
+  seoulDateTime,
+  seoulParts,
+  todayInSeoul,
+  weekdayName,
+  weekDays,
+  weekStart,
+} from "./dates";
 
 describe("todayInSeoul", () => {
   it("UTC로는 전날이어도 한국 날짜를 돌려준다", () => {
@@ -50,5 +64,35 @@ describe("일정 시각", () => {
     expect(dDayLabel("2026-11-07", "2026-11-06")).toBe("지남");
     expect(dDayLabel("2026-12-30", "2027-01-02")).toBe("D-3"); // 해 넘김
     expect(daysBetween("2028-02-28", "2028-03-01")).toBe(2); // 윤년
+  });
+});
+
+describe("주 계산 (일요일 시작)", () => {
+  it("weekStart: 일요일은 자기 자신, 토요일은 그 주 일요일", () => {
+    expect(weekStart("2026-11-01")).toBe("2026-11-01"); // 일
+    expect(weekStart("2026-11-07")).toBe("2026-11-01"); // 토
+    expect(weekStart("2026-11-04")).toBe("2026-11-01"); // 수
+  });
+  it("weekStart: 월·연도를 넘는다", () => {
+    expect(weekStart("2026-12-01")).toBe("2026-11-29");
+    expect(weekStart("2027-01-01")).toBe("2026-12-27");
+  });
+  it("addDays: 윤년 2월과 연말", () => {
+    expect(addDays("2028-02-28", 1)).toBe("2028-02-29");
+    expect(addDays("2027-02-28", 1)).toBe("2027-03-01");
+    expect(addDays("2026-12-27", 7)).toBe("2027-01-03");
+    expect(addDays("2026-11-01", -7)).toBe("2026-10-25");
+  });
+  it("weekDays는 일~토 7일", () => {
+    const days = weekDays("2026-11-29");
+    expect(days).toHaveLength(7);
+    expect(days[0]).toBe("2026-11-29");
+    expect(days[6]).toBe("2026-12-05");
+    expect(days.map(weekdayName)).toEqual(["일", "월", "화", "수", "목", "금", "토"]);
+  });
+  it("formatWeekRange", () => {
+    expect(formatWeekRange("2026-11-01")).toBe("2026.11.01 – 11.07");
+    expect(formatWeekRange("2026-11-29")).toBe("2026.11.29 – 12.05");
+    expect(formatWeekRange("2026-12-27")).toBe("2026.12.27 – 2027.01.02");
   });
 });
