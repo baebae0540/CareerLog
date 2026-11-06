@@ -32,5 +32,6 @@ export async function getStatusHistory(applicationId: number) {
     .select()
     .from(statusChanges)
     .where(eq(statusChanges.applicationId, applicationId))
-    .orderBy(asc(statusChanges.changedOn), asc(statusChanges.changedAt), asc(statusChanges.id));
+    // 기록한 순서대로 (변경일을 과거로 고를 수 있어서 변경일 순이면 흐름이 뒤집힐 수 있다)
+    .orderBy(asc(statusChanges.changedAt), asc(statusChanges.id));
 }
