@@ -51,6 +51,10 @@ src/
   lib/dates.ts          한국 시간 날짜 계산·표시 (테스트 있음)
   lib/labels.ts         상태·일정 종류의 한국어 이름과 색
   components/           폼·배지·삭제 버튼, 공통 클래스(ui.ts)
+    field.tsx           Field(라벨·입력·안내 줄), FormSection — 새 폼은 이것으로 만든다
+    select.tsx          선택 상자 (네이티브 <select> 대신 이것을 쓴다)
+    date-picker.tsx     날짜 선택 (네이티브 type="date" 대신 이것을 쓴다). 값은 YYYY-MM-DD, today는 서버에서 넘긴다
+    suggest-input.tsx   자유 입력 + 제안 목록 (datalist 대신)
   app/login/            로그인 화면·액션
   app/(app)/            로그인 후 화면 (layout에서 requireLogin)
     page.tsx            지원 목록 (/?status=로 필터)
@@ -98,6 +102,13 @@ dev 서버가 남아 있으면(포트 3000 사용 중): 맥 `lsof -ti tcp:3000 |
   - 관심 = 지원 전: 지원일 칸을 비활성화하고 null로 저장, 목록·상세에도 "지원 전"으로 표시한다.
   - 상세 화면에 상태 변경(`changeStatus`)을 추가. 변경일·메모를 받고, 관심에서 넘어가면 지원일을 채운다.
   - `status_changes.changed_on`(변경일) 컬럼을 추가했다 (마이그레이션 0001, 기존 행은 기록 시각의 한국 날짜로 채움). 테스트 24개.
+
+- 2026-11-06: 개발자 요청 반영.
+  - 상태 이력 수정(변경일·메모)과 삭제(가장 최근 변경만, 삭제하면 이전 상태로 되돌림). 지원일을 정한 이력의 날짜를 고치면 지원일도 따라간다. 실제 DB로 8개 시나리오 검증.
+  - 폼 정리: 카드 안에서 구역별로 나누고, 한 줄 입력은 모두 h-10으로 맞췄다. `Field`의 안내·오류 줄은 비어 있어도 높이를 확보해서 옆 칸과 줄이 맞는다.
+  - 브라우저 기본 선택 상자·달력·datalist를 디자인을 맞춘 컴포넌트로 교체했다 (`Select`=Radix, `DatePicker`=Radix Popover + react-day-picker v10, `SuggestInput`=직접 구현).
+  - 오류 문구 조사를 받침에 맞게 고쳤다 (회사를/포지션을).
+  - headless Chrome으로 등록→상태 변경→이력 수정·삭제→지원 건 삭제까지 확인. 브라우저 오류 없음.
 
 ## 다음 할 일
 

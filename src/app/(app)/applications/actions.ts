@@ -5,9 +5,15 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db";
 import { applications } from "@/db/schema";
-import { changeStatusWithHistory, insertApplicationWithHistory } from "@/db/statements";
+import {
+  changeStatusWithHistory,
+  deleteLatestHistoryEntry,
+  insertApplicationWithHistory,
+  updateHistoryEntry,
+} from "@/db/statements";
 import {
   parseCreateForm,
+  parseHistoryEditForm,
   parseStatusChangeForm,
   parseUpdateForm,
   type ApplicationFormState,
@@ -50,6 +56,34 @@ export async function createApplication(
 
   revalidatePath("/");
   redirect(`/applications/${id}`);
+}
+
+/** 상태 이력의 변경일·메모 수정 */
+export async function updateHistory(
+  applicationId: number,
+  historyId: number,
+  _prev: StatusChangeFormState,
+  formData: FormData,
+): Promise<StatusChangeFormState> {
+  await requireLogin();
+  const parsed = parseHistoryEditForm(formData);
+  if (!parsed.ok) return parsed.state;
+
+  const result = await getDb().execute(updateHistoryEntry(applicationId, historyId, parsed.data));
+  if (result.rows.length === 0) return { message: "이미 삭제된 이력입니다." };
+
+  revalidatePath("/");
+  revalidatePath(`/applications/${applicationId}`);
+  return { savedAt: Date.now() };
+}
+
+/** 가장 최근 상태 변경 삭제 (= 이전 상태로 되돌리기) */
+export async function deleteHistory(applicationId: number, historyId: number) {
+  await requireLogin();
+  // 최근 변경이 아니거나 첫 등록 이력이면 SQL에서 아무것도 지우지 않는다
+  await getDb().execute(deleteLatestHistoryEntry(applicationId, historyId));
+  revalidatePath("/");
+  revalidatePath(`/applications/${applicationId}`);
 }
 
 export async function updateApplication(

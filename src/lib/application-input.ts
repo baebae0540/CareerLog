@@ -3,20 +3,27 @@ import { z } from "zod";
 import { applicationStatus, type ApplicationStatus } from "@/db/schema";
 import { isValidYmd } from "@/lib/dates";
 
+/** 받침이 있으면 a, 없으면 b (한글이 아니면 b) */
+function josa(word: string, a: string, b: string) {
+  const code = word.charCodeAt(word.length - 1) - 0xac00;
+  return code >= 0 && code <= 11171 && code % 28 !== 0 ? a : b;
+}
+const tooLong = (label: string, max: number) => `${label}${josa(label, "은", "는")} ${max}자 이하로 입력하세요`;
+
 /** 빈 문자열은 null로 바꾸는 선택 입력 */
 const optionalText = (max: number, label: string) =>
   z
     .string()
     .trim()
-    .max(max, `${label}은(는) ${max}자 이하로 입력하세요`)
+    .max(max, tooLong(label, max))
     .transform((v) => (v === "" ? null : v));
 
 const requiredText = (max: number, label: string) =>
   z
     .string()
     .trim()
-    .min(1, `${label}을(를) 입력하세요`)
-    .max(max, `${label}은(는) ${max}자 이하로 입력하세요`);
+    .min(1, `${label}${josa(label, "을", "를")} 입력하세요`)
+    .max(max, tooLong(label, max));
 
 const fieldsSchema = z.object({
   company: requiredText(100, "회사"),
@@ -63,6 +70,27 @@ export type StatusChangeFormState = {
   /** 성공할 때마다 바뀌어 폼을 초기화하는 데 쓴다 */
   savedAt?: number;
 };
+
+const historyEditSchema = statusChangeSchema.pick({ changedOn: true, note: true });
+export type HistoryEditInput = z.infer<typeof historyEditSchema>;
+
+/** 상태 이력 수정 폼 (변경일·메모만. 상태 값은 흐름이 깨지므로 바꾸지 않는다) */
+export function parseHistoryEditForm(
+  formData: FormData,
+): { ok: true; data: HistoryEditInput } | { ok: false; state: StatusChangeFormState } {
+  const get = (k: string) => {
+    const v = formData.get(k);
+    return typeof v === "string" ? v : "";
+  };
+  const result = historyEditSchema.safeParse({ changedOn: get("changedOn"), note: get("note") });
+  if (result.success) return { ok: true, data: result.data };
+  const errors: StatusChangeFormState["errors"] = {};
+  for (const issue of result.error.issues) {
+    const key = issue.path[0] as keyof StatusChangeInput;
+    errors[key] ??= issue.message;
+  }
+  return { ok: false, state: { errors } };
+}
 
 /** 상태 변경 폼 */
 export function parseStatusChangeForm(

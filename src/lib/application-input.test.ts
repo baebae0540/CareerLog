@@ -39,8 +39,9 @@ describe("parseCreateForm", () => {
     const r = parseCreateForm(form({ ...valid, company: "   ", position: "" }));
     expect(r.ok).toBe(false);
     if (!r.ok) {
-      expect(r.state.errors?.company).toBeDefined();
-      expect(r.state.errors?.position).toBeDefined();
+      // 받침에 맞는 조사
+      expect(r.state.errors?.company).toBe("회사를 입력하세요");
+      expect(r.state.errors?.position).toBe("포지션을 입력하세요");
       expect(r.state.values?.memo).toBe(valid.memo); // 다시 채우기용
     }
   });

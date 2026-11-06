@@ -2,7 +2,7 @@
 // CTE(WITH) 한 문장으로 묶어 원자적으로 처리한다. 값은 모두 파라미터로 들어간다.
 // 바꾸면 실제 DB에 한 번 실행해 본다 (AGENTS.md).
 import { sql } from "drizzle-orm";
-import type { ApplicationCreateInput, StatusChangeInput } from "@/lib/application-input";
+import type { ApplicationCreateInput, HistoryEditInput, StatusChangeInput } from "@/lib/application-input";
 
 /**
  * 지원 건 저장 + 첫 상태 이력 기록. 결과 행: { id }
@@ -50,4 +50,68 @@ export function changeStatusWithHistory(applicationId: number, input: StatusChan
     insert into status_changes (application_id, from_status, to_status, note, changed_on)
     select id, from_status, ${to}, ${input.note}::text, ${on} from updated
     returning application_id as id`;
+}
+
+/**
+ * 상태 이력 수정 (변경일·메모). 결과 행: { id }
+ * 이 이력이 지원일을 정한 이력(첫 등록 또는 관심에서 넘어온 변경)이고
+ * 지원일이 이 이력의 변경일과 같으면, 지원일도 새 날짜로 맞춘다.
+ */
+export function updateHistoryEntry(applicationId: number, historyId: number, input: HistoryEditInput) {
+  const on = sql`${input.changedOn}::date`;
+  return sql`
+    with old as (
+      select id, application_id, from_status, to_status, changed_on
+      from status_changes
+      where id = ${historyId} and application_id = ${applicationId}
+    ),
+    synced as (
+      update applications a
+      set applied_at = ${on}, updated_at = now()
+      from old
+      where a.id = old.application_id
+        and old.to_status <> 'interested'
+        and (old.from_status is null or old.from_status = 'interested')
+        and a.status <> 'interested'
+        and a.applied_at = old.changed_on
+      returning a.id
+    )
+    update status_changes sc
+    set changed_on = ${on}, note = ${input.note}::text
+    from old
+    where sc.id = old.id
+    returning sc.id`;
+}
+
+/**
+ * 가장 최근 상태 변경 삭제 = 이전 상태로 되돌리기. 결과 행: { id }
+ * 첫 등록 이력(from_status가 null)과 최근이 아닌 이력은 지우지 않는다 (흐름이 끊기므로).
+ * 관심으로 되돌아가면 지원일을 비운다.
+ */
+export function deleteLatestHistoryEntry(applicationId: number, historyId: number) {
+  return sql`
+    with target as (
+      select sc.id, sc.application_id, sc.from_status
+      from status_changes sc
+      where sc.id = ${historyId}
+        and sc.application_id = ${applicationId}
+        and sc.from_status is not null
+        and not exists (
+          select 1 from status_changes later
+          where later.application_id = sc.application_id
+            and (later.changed_at, later.id) > (sc.changed_at, sc.id)
+        )
+    ),
+    reverted as (
+      update applications a
+      set status = t.from_status,
+          applied_at = case when t.from_status = 'interested' then null else a.applied_at end,
+          updated_at = now()
+      from target t
+      where a.id = t.application_id
+      returning a.id
+    )
+    delete from status_changes
+    where id in (select id from target) and exists (select 1 from reverted)
+    returning id`;
 }
