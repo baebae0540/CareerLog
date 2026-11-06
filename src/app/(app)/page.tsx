@@ -3,6 +3,7 @@ import { countByStatus, listApplications } from "@/db/queries";
 import { applicationStatus, type ApplicationStatus } from "@/db/schema";
 import { StatusBadge } from "@/components/status-badge";
 import { cardClass, primaryButtonClass } from "@/components/ui";
+import { isBeforeApplying } from "@/lib/application-input";
 import { formatYmd } from "@/lib/dates";
 import { STATUS_LABEL, STATUS_ORDER } from "@/lib/labels";
 import { requireLogin } from "@/lib/session";
@@ -67,7 +68,7 @@ export default async function ApplicationListPage(props: PageProps<"/">) {
                 <div className="flex flex-col items-end gap-1">
                   <StatusBadge status={a.status} />
                   <span className="text-xs text-zinc-400">
-                    {a.appliedAt ? `${formatYmd(a.appliedAt)} 지원` : "지원 전"}
+                    {a.appliedAt && !isBeforeApplying(a.status) ? `${formatYmd(a.appliedAt)} 지원` : "지원 전"}
                   </span>
                 </div>
               </Link>

@@ -5,13 +5,36 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db";
 import { applications } from "@/db/schema";
-import { insertApplicationWithHistory } from "@/db/statements";
+import { changeStatusWithHistory, insertApplicationWithHistory } from "@/db/statements";
 import {
   parseCreateForm,
+  parseStatusChangeForm,
   parseUpdateForm,
   type ApplicationFormState,
+  type StatusChangeFormState,
 } from "@/lib/application-input";
+import { todayInSeoul } from "@/lib/dates";
 import { requireLogin } from "@/lib/session";
+
+/** 상태 변경. 상태는 이 액션으로만 바꾼다 (이력 기록이 한 곳에 있도록, AGENTS.md 규칙). */
+export async function changeStatus(
+  id: number,
+  _prev: StatusChangeFormState,
+  formData: FormData,
+): Promise<StatusChangeFormState> {
+  await requireLogin();
+  const parsed = parseStatusChangeForm(formData);
+  if (!parsed.ok) return parsed.state;
+
+  const result = await getDb().execute(changeStatusWithHistory(id, parsed.data));
+  if (result.rows.length === 0) {
+    return { message: "이미 같은 상태이거나 삭제된 지원 건입니다." };
+  }
+
+  revalidatePath("/");
+  revalidatePath(`/applications/${id}`);
+  return { savedAt: Date.now() };
+}
 
 export async function createApplication(
   _prev: ApplicationFormState,
@@ -22,7 +45,7 @@ export async function createApplication(
   if (!parsed.ok) return parsed.state;
 
   // 지원 건 저장 + 첫 상태 이력을 SQL 한 문장으로 (둘 중 하나만 저장되는 일 방지)
-  const result = await getDb().execute(insertApplicationWithHistory(parsed.data));
+  const result = await getDb().execute(insertApplicationWithHistory(parsed.data, todayInSeoul()));
   const id = Number(result.rows[0].id);
 
   revalidatePath("/");

@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
+import type { ApplicationStatus } from "@/db/schema";
 import type { ApplicationFormState, FormField } from "@/lib/application-input";
 import { STATUS_LABEL, STATUS_ORDER } from "@/lib/labels";
 import { inputClass, primaryButtonClass, secondaryButtonClass } from "./ui";
@@ -14,17 +15,49 @@ type Props = {
   withStatus: boolean;
   submitLabel: string;
   cancelHref: string;
+  /** 한국 기준 오늘 (서버에서 계산해서 넘긴다: 브라우저 시간대와 무관하게) */
+  today: string;
+  /** 수정 화면처럼 상태 선택이 없을 때의 현재 상태 */
+  currentStatus?: ApplicationStatus;
 };
 
-export function ApplicationForm({ action, initial, withStatus, submitLabel, cancelHref }: Props) {
-  const [state, formAction, pending] = useActionState(action, {});
+export function ApplicationForm(props: Props) {
+  const [state, formAction, pending] = useActionState(props.action, {});
   // 검증 실패로 돌아오면 사용자가 입력했던 값으로 다시 채운다
-  const values = state.values ?? initial;
+  const values = state.values ?? props.initial;
+
+  // key: 실패 응답이 올 때마다 입력값을 새로 적용 (FormBody를 다시 만든다)
+  return (
+    <form action={formAction} className="flex flex-col gap-5" noValidate>
+      <FormBody key={JSON.stringify(values)} {...props} values={values} state={state} pending={pending} />
+    </form>
+  );
+}
+
+function FormBody({
+  values,
+  state,
+  pending,
+  withStatus,
+  submitLabel,
+  cancelHref,
+  today,
+  currentStatus,
+}: Props & { values: Partial<Record<FormField, string>>; state: ApplicationFormState; pending: boolean }) {
   const errors = state.errors ?? {};
+  // 상태와 지원일은 서로 영향을 주므로 직접 관리한다
+  const [status, setStatus] = useState((values.status as ApplicationStatus | undefined) ?? currentStatus);
+  const [appliedAt, setAppliedAt] = useState(values.appliedAt ?? "");
+  const beforeApplying = status === "interested"; // 관심 = 지원 전
+
+  function onStatusChange(next: ApplicationStatus) {
+    setStatus(next);
+    // 지원 이후 단계를 고르면 비어 있는 지원일을 오늘로 채운다
+    if (next !== "interested" && !appliedAt) setAppliedAt(today);
+  }
 
   return (
-    // key: 실패 응답이 올 때마다 defaultValue를 새 값으로 다시 적용
-    <form key={JSON.stringify(values)} action={formAction} className="flex flex-col gap-5" noValidate>
+    <>
       {state.message && (
         <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
           {state.message}
@@ -45,16 +78,31 @@ export function ApplicationForm({ action, initial, withStatus, submitLabel, canc
       <div className="grid gap-5 sm:grid-cols-2">
         {withStatus && (
           <Field name="status" label="현재 상태" required error={errors.status}>
-            <select id="status" name="status" defaultValue={values.status} className={inputClass}>
+            <select id="status" name="status" value={status} className={inputClass}
+              onChange={(e) => onStatusChange(e.target.value as ApplicationStatus)}>
               {STATUS_ORDER.map((s) => (
                 <option key={s} value={s}>{STATUS_LABEL[s]}</option>
               ))}
             </select>
           </Field>
         )}
-        <Field name="appliedAt" label="지원일" error={errors.appliedAt} hint="아직 지원 전이면 비워 두세요">
-          <input id="appliedAt" name="appliedAt" type="date" defaultValue={values.appliedAt}
-            aria-invalid={!!errors.appliedAt} className={inputClass} />
+        <Field
+          name="appliedAt"
+          label="지원일"
+          error={errors.appliedAt}
+          hint={
+            beforeApplying
+              ? "관심 상태는 지원 전으로 저장됩니다"
+              : withStatus
+                ? "상태를 고르면 비어 있을 때 오늘로 채워집니다"
+                : undefined
+          }
+        >
+          {/* 관심이면 비활성화: 비활성 입력은 전송되지 않아 지원일이 비워진다 */}
+          <input id="appliedAt" name="appliedAt" type="date"
+            value={beforeApplying ? "" : appliedAt} disabled={beforeApplying}
+            onChange={(e) => setAppliedAt(e.target.value)}
+            aria-invalid={!!errors.appliedAt} className={`${inputClass} disabled:opacity-50`} />
         </Field>
       </div>
 
@@ -85,7 +133,7 @@ export function ApplicationForm({ action, initial, withStatus, submitLabel, canc
           {pending ? "저장 중…" : submitLabel}
         </button>
       </div>
-    </form>
+    </>
   );
 }
 

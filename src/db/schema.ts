@@ -65,11 +65,14 @@ export const statusChanges = pgTable(
     fromStatus: applicationStatus("from_status"), // 최초 등록이면 null
     toStatus: applicationStatus("to_status").notNull(),
     note: text("note"),
+    // 상태가 바뀐 날 (한국 날짜, 사용자가 고른다). 주간 모니터링의 기준.
+    changedOn: date("changed_on", { mode: "string" }).notNull(),
+    // 실제로 기록한 시각 (같은 날 여러 번 바꿨을 때 순서용)
     changedAt: timestamp("changed_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     index("status_changes_application_idx").on(t.applicationId),
-    index("status_changes_changed_at_idx").on(t.changedAt),
+    index("status_changes_changed_on_idx").on(t.changedOn),
   ],
 );
 

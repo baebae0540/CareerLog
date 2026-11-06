@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseCreateForm, parseId, parseUpdateForm } from "./application-input";
+import { parseCreateForm, parseId, parseStatusChangeForm, parseUpdateForm } from "./application-input";
 
 function form(values: Record<string, string>) {
   const fd = new FormData();
@@ -55,6 +55,38 @@ describe("parseCreateForm", () => {
   it("없는 날짜와 잘못된 상태는 거부한다", () => {
     expect(parseCreateForm(form({ ...valid, appliedAt: "2026-02-30" })).ok).toBe(false);
     expect(parseCreateForm(form({ ...valid, status: "hacked" })).ok).toBe(false);
+  });
+});
+
+describe("관심 = 지원 전", () => {
+  it("관심 상태로 등록하면 지원일이 있어도 비운다", () => {
+    const r = parseCreateForm(form({ ...valid, status: "interested", appliedAt: "2026-11-06" }));
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.data.appliedAt).toBeNull();
+  });
+  it("다른 상태는 지원일을 유지한다", () => {
+    const r = parseCreateForm(form({ ...valid, status: "interview" }));
+    expect(r.ok && r.data.appliedAt).toBe("2026-11-06");
+  });
+});
+
+describe("parseStatusChangeForm", () => {
+  it("올바른 입력", () => {
+    const r = parseStatusChangeForm(form({ toStatus: "interview", changedOn: "2026-11-06", note: " 1차 " }));
+    expect(r).toEqual({ ok: true, data: { toStatus: "interview", changedOn: "2026-11-06", note: "1차" } });
+  });
+  it("메모는 비우면 null", () => {
+    const r = parseStatusChangeForm(form({ toStatus: "offer", changedOn: "2026-11-06" }));
+    expect(r.ok && r.data.note).toBeNull();
+  });
+  it("변경일은 필수이고 실제 날짜여야 한다", () => {
+    expect(parseStatusChangeForm(form({ toStatus: "offer", changedOn: "" })).ok).toBe(false);
+    expect(parseStatusChangeForm(form({ toStatus: "offer", changedOn: "2026-02-30" })).ok).toBe(false);
+  });
+  it("없는 상태는 거부", () => {
+    const r = parseStatusChangeForm(form({ toStatus: "hired", changedOn: "2026-11-06" }));
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.state.errors?.toStatus).toBeDefined();
   });
 });
 

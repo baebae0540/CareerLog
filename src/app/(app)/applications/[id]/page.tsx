@@ -3,12 +3,13 @@ import { notFound } from "next/navigation";
 import { getApplication, getStatusHistory } from "@/db/queries";
 import { DeleteForm } from "@/components/delete-button";
 import { StatusBadge } from "@/components/status-badge";
+import { StatusChangeForm } from "@/components/status-change-form";
 import { cardClass, secondaryButtonClass } from "@/components/ui";
-import { parseId } from "@/lib/application-input";
-import { formatDateTime, formatYmd } from "@/lib/dates";
+import { isBeforeApplying, parseId } from "@/lib/application-input";
+import { formatDateTime, formatYmd, todayInSeoul } from "@/lib/dates";
 import { STATUS_LABEL } from "@/lib/labels";
 import { requireLogin } from "@/lib/session";
-import { deleteApplication } from "../actions";
+import { changeStatus, deleteApplication } from "../actions";
 
 export default async function ApplicationDetailPage(props: PageProps<"/applications/[id]">) {
   await requireLogin();
@@ -46,7 +47,7 @@ export default async function ApplicationDetailPage(props: PageProps<"/applicati
       </div>
 
       <dl className={`${cardClass} grid gap-x-6 gap-y-4 p-5 sm:grid-cols-3`}>
-        <Item label="지원일">{app.appliedAt ? formatYmd(app.appliedAt) : "지원 전"}</Item>
+        <Item label="지원일">{app.appliedAt && !isBeforeApplying(app.status) ? formatYmd(app.appliedAt) : "지원 전"}</Item>
         <Item label="지원 경로">{app.source ?? "-"}</Item>
         <Item label="공고 링크">
           {app.jobUrl ? (
@@ -65,6 +66,11 @@ export default async function ApplicationDetailPage(props: PageProps<"/applicati
       </dl>
 
       <div className={`${cardClass} p-5`}>
+        <h2 className="mb-4 font-semibold">상태 변경</h2>
+        <StatusChangeForm action={changeStatus.bind(null, app.id)} currentStatus={app.status} today={todayInSeoul()} />
+      </div>
+
+      <div className={`${cardClass} p-5`}>
         <h2 className="mb-4 font-semibold">상태 이력</h2>
         <ol className="flex flex-col gap-3 border-l border-zinc-200 pl-4 dark:border-zinc-800">
           {history.map((h) => (
@@ -81,7 +87,9 @@ export default async function ApplicationDetailPage(props: PageProps<"/applicati
                   </>
                 )}
               </p>
-              <p className="text-xs text-zinc-500">{formatDateTime(h.changedAt)}</p>
+              <p className="text-xs text-zinc-500" title={`기록: ${formatDateTime(h.changedAt)}`}>
+                {formatYmd(h.changedOn)}
+              </p>
               {h.note && <p className="mt-1 text-sm whitespace-pre-wrap text-zinc-600 dark:text-zinc-400">{h.note}</p>}
             </li>
           ))}

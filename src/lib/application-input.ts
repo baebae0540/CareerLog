@@ -1,6 +1,6 @@
 // 지원 건 입력 폼 검증. 서버 액션에서 쓰고, 순수 함수라 테스트한다.
 import { z } from "zod";
-import { applicationStatus } from "@/db/schema";
+import { applicationStatus, type ApplicationStatus } from "@/db/schema";
 import { isValidYmd } from "@/lib/dates";
 
 /** 빈 문자열은 null로 바꾸는 선택 입력 */
@@ -34,12 +34,57 @@ const fieldsSchema = z.object({
   memo: optionalText(5000, "메모"),
 });
 
-const createSchema = fieldsSchema.extend({
-  status: z.enum(applicationStatus.enumValues, { error: "상태를 선택하세요" }),
-});
+const statusField = z.enum(applicationStatus.enumValues, { error: "상태를 선택하세요" });
+
+const createSchema = fieldsSchema
+  .extend({ status: statusField })
+  // 관심 = 지원 전. 지원일이 들어 있어도 저장하지 않는다.
+  .transform((v) => (v.status === "interested" ? { ...v, appliedAt: null } : v));
 
 export type ApplicationFields = z.infer<typeof fieldsSchema>;
 export type ApplicationCreateInput = z.infer<typeof createSchema>;
+
+/** 관심 상태는 지원일과 상관없이 '지원 전'이다 */
+export function isBeforeApplying(status: ApplicationStatus) {
+  return status === "interested";
+}
+
+const statusChangeSchema = z.object({
+  toStatus: statusField,
+  changedOn: z.string().refine(isValidYmd, "올바른 날짜를 입력하세요"),
+  note: optionalText(1000, "메모"),
+});
+
+export type StatusChangeInput = z.infer<typeof statusChangeSchema>;
+
+export type StatusChangeFormState = {
+  errors?: Partial<Record<keyof StatusChangeInput, string>>;
+  message?: string;
+  /** 성공할 때마다 바뀌어 폼을 초기화하는 데 쓴다 */
+  savedAt?: number;
+};
+
+/** 상태 변경 폼 */
+export function parseStatusChangeForm(
+  formData: FormData,
+): { ok: true; data: StatusChangeInput } | { ok: false; state: StatusChangeFormState } {
+  const get = (k: string) => {
+    const v = formData.get(k);
+    return typeof v === "string" ? v : "";
+  };
+  const result = statusChangeSchema.safeParse({
+    toStatus: get("toStatus"),
+    changedOn: get("changedOn"),
+    note: get("note"),
+  });
+  if (result.success) return { ok: true, data: result.data };
+  const errors: StatusChangeFormState["errors"] = {};
+  for (const issue of result.error.issues) {
+    const key = issue.path[0] as keyof StatusChangeInput;
+    errors[key] ??= issue.message;
+  }
+  return { ok: false, state: { errors } };
+}
 
 export const FORM_FIELDS = [
   "company",
@@ -72,7 +117,7 @@ function readForm(formData: FormData) {
   return values;
 }
 
-function parse<T>(schema: z.ZodType<T>, formData: FormData): ParseResult<T> {
+function parse<T>(schema: z.ZodType<T, unknown>, formData: FormData): ParseResult<T> {
   const values = readForm(formData);
   const result = schema.safeParse(values);
   if (result.success) return { ok: true, data: result.data };

@@ -3,6 +3,7 @@ import { getApplication } from "@/db/queries";
 import { ApplicationForm } from "@/components/application-form";
 import { StatusBadge } from "@/components/status-badge";
 import { parseId } from "@/lib/application-input";
+import { todayInSeoul } from "@/lib/dates";
 import { requireLogin } from "@/lib/session";
 import { updateApplication } from "../../actions";
 
@@ -33,6 +34,8 @@ export default async function EditApplicationPage(props: PageProps<"/application
           memo: app.memo ?? "",
         }}
         withStatus={false}
+        currentStatus={app.status}
+        today={todayInSeoul()}
         submitLabel="저장"
         cancelHref={`/applications/${app.id}`}
       />
