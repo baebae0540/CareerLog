@@ -29,7 +29,11 @@ AI 에이전트(Claude Code 등)가 세션을 시작할 때 가장 먼저 읽는
 - pnpm 11의 `minimumReleaseAge` 정책이 갓 나온 버전을 막는다. 꼭 필요한 버전만 `pnpm-workspace.yaml`의 `minimumReleaseAgeExclude`에 정확한 버전으로 넣는다 (`@next/*@x` 같은 패턴+버전 조합은 안 됨).
 - Next.js 16은 `middleware`가 `proxy`로 바뀌었다 (`src/proxy.ts`, Node 런타임).
 - `LayoutProps`·`PageProps` 같은 전역 타입은 Next가 생성한다. 그래서 `typecheck` 스크립트는 `next typegen`을 먼저 돌린다.
-- DB 드라이버는 `neon-http`다. 대화형 트랜잭션이 없으므로 여러 쿼리를 함께 처리할 때는 `db.batch([...])`를 쓴다.
+- DB 드라이버는 `neon-http`다. 대화형 트랜잭션이 없다.
+  - 서로 독립적인 쿼리 여러 개 → `db.batch([...])` (한 트랜잭션으로 실행)
+  - 앞 쿼리의 결과(id 등)가 뒤 쿼리에 필요 → `src/db/statements.ts`에 CTE 한 문장으로 쓴다
+  - Drizzle `insert().select()`는 **모든 컬럼을 정의 순서대로** 골라야 해서 CTE에 맞지 않는다. 빌더를 `sql` 템플릿에 끼우면 괄호가 이중으로 감싸지고, 컬럼 `.name`은 값($n)으로 들어간다. 그래서 statements.ts는 SQL을 직접 쓰고 값만 파라미터로 넘긴다
+  - statements.ts를 바꾸면 실제 DB에 한 번 실행해 본다 (검증용 행은 바로 삭제)
 
 ## 구조
 
@@ -38,11 +42,19 @@ src/
   proxy.ts              로그인 안 했으면 /login으로 (낙관적 검사)
   db/schema.ts          테이블 정의 (applications, status_changes, events)
   db/index.ts           getDb() — 처음 쓸 때 연결
+  db/queries.ts         조회 함수
+  db/statements.ts      여러 테이블을 한 번에 바꾸는 CTE SQL
   lib/env.ts            serverEnv() — 환경 변수 검증
   lib/auth-token.ts     JWT 서명·검증, 비밀번호 비교 (순수 함수, 테스트 있음)
   lib/session.ts        쿠키 발급·삭제, requireLogin()
+  lib/application-input.ts  폼 검증 (zod, 테스트 있음)
+  lib/dates.ts          한국 시간 날짜 계산·표시 (테스트 있음)
+  lib/labels.ts         상태·일정 종류의 한국어 이름과 색
+  components/           폼·배지·삭제 버튼, 공통 클래스(ui.ts)
   app/login/            로그인 화면·액션
   app/(app)/            로그인 후 화면 (layout에서 requireLogin)
+    page.tsx            지원 목록 (/?status=로 필터)
+    applications/       등록(new)·상세([id])·수정([id]/edit), actions.ts
 drizzle/                마이그레이션 SQL (drizzle-kit이 생성, 커밋함)
 ```
 
@@ -78,10 +90,11 @@ dev 서버가 남아 있으면(포트 3000 사용 중): 맥 `lsof -ti tcp:3000 |
 - 2026-11-05: 기획 확정 (PLAN.md).
 - 2026-11-05: 0단계 코드 완료. Next.js 16.4.5 프로젝트, 비밀번호 로그인(HttpOnly JWT 쿠키, 30일), proxy, DB 스키마와 첫 마이그레이션, vitest 5개.
 - 2026-11-06: **0단계 완료.** Neon 마이그레이션 적용, Vercel 첫 배포. 배포 주소에서 리다이렉트·로그인 화면 확인.
+- 2026-11-06: 1단계 코드 완료. 목록(상태 필터)·등록·상세(상태 이력 표시)·수정·삭제. 등록은 CTE로 첫 이력과 함께 저장(실제 DB로 검증). 수정 화면에서는 상태를 바꾸지 않는다. 테스트 18개. 브라우저로 직접 등록·수정·삭제하는 확인은 개발자가 배포 후 한다.
 
 ## 다음 할 일
 
-- [ ] 1단계: 구직활동 등록 (목록·등록·상세·수정·삭제). 등록 시 첫 상태 이력도 기록
+- [ ] 1단계 확인 (개발자): 배포 주소에서 등록 → 상세 → 수정 → 삭제
 - [ ] 2단계: 진행 상황 업데이트 (`changeStatus`, 일정)
 - [ ] 3단계: 주간 모니터링
 
