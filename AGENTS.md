@@ -67,7 +67,8 @@ drizzle/                마이그레이션 SQL (drizzle-kit이 생성, 커밋함
 
 | 명령 | 내용 |
 | --- | --- |
-| `pnpm dev` | 개발 서버 http://localhost:3000. **종료는 그 터미널에서 Ctrl+C** |
+| `pnpm dev` | 개발 서버를 띄우고 준비되면 브라우저를 자동으로 연다 (`scripts/dev.mjs`). **종료는 그 터미널에서 Ctrl+C** |
+| `pnpm dev:quiet` | 브라우저 없이 개발 서버만 (`next dev`) |
 | `pnpm check` | lint + 타입 검사 + 테스트 (커밋 전에 돌린다) |
 | `pnpm build` | 프로덕션 빌드 |
 | `pnpm db:generate` | `schema.ts`를 바꾼 뒤 마이그레이션 SQL 생성 |
