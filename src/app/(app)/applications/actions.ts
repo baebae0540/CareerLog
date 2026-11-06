@@ -12,6 +12,7 @@ import {
   updateHistoryEntry,
 } from "@/db/statements";
 import {
+  isBeforeInterview,
   parseCreateForm,
   parseHistoryEditForm,
   parseStatusChangeForm,
@@ -19,7 +20,7 @@ import {
   type ApplicationFormState,
   type StatusChangeFormState,
 } from "@/lib/application-input";
-import { todayInSeoul } from "@/lib/dates";
+import { seoulParts, todayInSeoul } from "@/lib/dates";
 import { parseEventForm, type EventFormState } from "@/lib/event-input";
 import { requireLogin } from "@/lib/session";
 
@@ -169,9 +170,37 @@ export async function updateEvent(
   return { savedAt: Date.now() };
 }
 
-export async function setEventDone(applicationId: number, eventId: number, done: boolean) {
+/**
+ * 일정 완료 표시/취소.
+ * 면접 일정을 완료하면서 advanceStatus=1이면(화면에서 확인함) 상태를 '면접'으로 바꾼다.
+ * 상태 변경 SQL은 changeStatus와 같은 changeStatusWithHistory를 쓴다 (이력 기록은 한 곳).
+ */
+export async function setEventDone(applicationId: number, eventId: number, done: boolean, formData: FormData) {
   await requireLogin();
-  await getDb().update(events).set({ done }).where(eventOf(applicationId, eventId));
+  const db = getDb();
+  const markDone = db.update(events).set({ done }).where(eventOf(applicationId, eventId));
+
+  if (done && formData.get("advanceStatus") === "1") {
+    // 화면 값만 믿지 않고 서버에서 다시 확인: 면접 일정이고 지원 건이 면접 이전 단계일 때만
+    const [row] = await db
+      .select({ kind: events.kind, title: events.title, startsAt: events.startsAt, status: applications.status })
+      .from(events)
+      .innerJoin(applications, eq(applications.id, events.applicationId))
+      .where(eventOf(applicationId, eventId));
+    if (row && row.kind === "interview" && isBeforeInterview(row.status)) {
+      const change = changeStatusWithHistory(applicationId, {
+        toStatus: "interview",
+        changedOn: seoulParts(row.startsAt).ymd, // 일정 날짜
+        note: `${row.title} 완료`,
+      });
+      // 완료 표시와 상태 변경을 한 트랜잭션으로
+      await db.batch([markDone, db.execute(change)]);
+      revalidateApplication(applicationId);
+      return;
+    }
+  }
+
+  await markDone;
   revalidateApplication(applicationId);
 }
 

@@ -56,6 +56,11 @@ export function isBeforeApplying(status: ApplicationStatus) {
   return status === "interested";
 }
 
+/** 면접 이전 단계 (면접 일정을 끝내면 '면접'으로 바꿀지 물어볼 상태) */
+export function isBeforeInterview(status: ApplicationStatus) {
+  return status === "interested" || status === "applied" || status === "document_passed";
+}
+
 const statusChangeSchema = z.object({
   toStatus: statusField,
   changedOn: z.string().refine(isValidYmd, "올바른 날짜를 입력하세요"),

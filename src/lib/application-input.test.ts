@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseCreateForm, parseId, parseStatusChangeForm, parseUpdateForm } from "./application-input";
+import { isBeforeInterview, parseCreateForm, parseId, parseStatusChangeForm, parseUpdateForm } from "./application-input";
 
 function form(values: Record<string, string>) {
   const fd = new FormData();
@@ -107,5 +107,12 @@ describe("parseId", () => {
     expect(parseId("1.5")).toBeNull();
     expect(parseId("abc")).toBeNull();
     expect(parseId("9999999999")).toBeNull();
+  });
+});
+
+describe("isBeforeInterview", () => {
+  it("관심·지원·서류 통과만 면접 이전", () => {
+    expect(["interested", "applied", "document_passed"].every((s) => isBeforeInterview(s as never))).toBe(true);
+    expect(["interview", "final", "offer", "rejected", "on_hold"].some((s) => isBeforeInterview(s as never))).toBe(false);
   });
 });

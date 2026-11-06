@@ -24,11 +24,13 @@ type Props = {
   entry: EventEntry;
   today: string;
   updateAction: (prev: EventFormState, formData: FormData) => Promise<EventFormState>;
-  toggleDoneAction: () => Promise<void>;
+  toggleDoneAction: (formData: FormData) => Promise<void>;
+  /** 완료할 때 상태를 '면접'으로 바꿀지 물을지 (면접 일정 + 면접 이전 단계). 값은 현재 상태 이름 */
+  askAdvanceFrom?: string;
   deleteAction: () => Promise<void>;
 };
 
-export function EventItem({ entry, today, updateAction, toggleDoneAction, deleteAction }: Props) {
+export function EventItem({ entry, today, updateAction, toggleDoneAction, deleteAction, askAdvanceFrom }: Props) {
   const [editing, setEditing] = useState(false);
 
   if (editing) {
@@ -51,7 +53,16 @@ export function EventItem({ entry, today, updateAction, toggleDoneAction, delete
 
   return (
     <li className="flex items-start gap-3">
-      <form action={toggleDoneAction} className="pt-0.5">
+      <form
+        action={toggleDoneAction}
+        onSubmit={(e) => {
+          // 아니요를 골라도 완료 표시는 한다
+          const answer = askAdvanceFrom ? confirm(`상태를 '면접'으로 바꿀까요?\n(현재: ${askAdvanceFrom})`) : false;
+          (e.currentTarget.elements.namedItem("advanceStatus") as HTMLInputElement).value = answer ? "1" : "";
+        }}
+        className="pt-0.5"
+      >
+        <input type="hidden" name="advanceStatus" defaultValue="" />
         <DoneButton done={entry.done} />
       </form>
       <div className={`min-w-0 flex-1 ${entry.done || past ? "opacity-60" : ""}`}>

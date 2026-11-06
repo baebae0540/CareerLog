@@ -8,8 +8,9 @@ import { HistoryItem } from "@/components/history-item";
 import { StatusBadge } from "@/components/status-badge";
 import { StatusChangeForm } from "@/components/status-change-form";
 import { cardClass, secondaryButtonClass } from "@/components/ui";
-import { isBeforeApplying, parseId } from "@/lib/application-input";
+import { isBeforeApplying, isBeforeInterview, parseId } from "@/lib/application-input";
 import { formatDateTime, formatYmd, seoulParts, todayInSeoul } from "@/lib/dates";
+import { STATUS_LABEL } from "@/lib/labels";
 import { requireLogin } from "@/lib/session";
 import {
   changeStatus,
@@ -97,6 +98,9 @@ export default async function ApplicationDetailPage(props: PageProps<"/applicati
                       updateAction={updateEvent.bind(null, app.id, e.id)}
                       toggleDoneAction={setEventDone.bind(null, app.id, e.id, !e.done)}
                       deleteAction={deleteEvent.bind(null, app.id, e.id)}
+                      askAdvanceFrom={
+                        e.kind === "interview" && !e.done && isBeforeInterview(app.status) ? STATUS_LABEL[app.status] : undefined
+                      }
                     />
                   );
                 })}
