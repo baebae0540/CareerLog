@@ -76,7 +76,7 @@ export function DatePicker({
           <DayPicker
             mode="single"
             locale={ko}
-            weekStartsOn={1} // 주간 모니터링과 같은 월요일 시작
+            weekStartsOn={0} // 주간 모니터링과 같은 일요일 시작
             today={toDate(today)}
             selected={selected}
             defaultMonth={selected ?? toDate(today)}
