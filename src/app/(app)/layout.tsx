@@ -21,6 +21,9 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
               <Link href="/week" className="hover:text-zinc-900 dark:hover:text-zinc-100">
                 주간
               </Link>
+              <Link href="/stats" className="hover:text-zinc-900 dark:hover:text-zinc-100">
+                통계
+              </Link>
             </nav>
           </div>
           <form action={logout}>

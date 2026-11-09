@@ -1,8 +1,9 @@
 import "server-only";
-import { and, asc, count, desc, eq, gte, lt, lte } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, isNotNull, lt, lte, ne } from "drizzle-orm";
 import { getDb } from "@/db";
 import { applications, events, statusChanges, type ApplicationStatus } from "@/db/schema";
 import { addDays, seoulDateTime } from "@/lib/dates";
+import type { FunnelApp, FunnelChange } from "@/lib/stats";
 import type { WeekData } from "@/lib/week";
 
 export async function listApplications(status?: ApplicationStatus) {
@@ -95,4 +96,27 @@ export async function getWeekData(start: string, days = 7): Promise<WeekData> {
     statusChanges: weekChanges,
     applied: applied.filter((a): a is typeof a & { appliedAt: string } => a.appliedAt !== null),
   };
+}
+
+/** 통계 화면 재료: 지원일이 from 이후(null이면 전체)인 지원 건과 그 상태 이력, 관심 건수 */
+export async function getStatsData(
+  from: string | null,
+): Promise<{ apps: FunnelApp[]; changes: FunnelChange[]; interested: number }> {
+  const db = getDb();
+  // 관심(지원 전)은 지원일이 null이지만, 혹시 남아 있어도 퍼널에 넣지 않는다
+  const target = and(
+    isNotNull(applications.appliedAt),
+    ne(applications.status, "interested"),
+    from ? gte(applications.appliedAt, from) : undefined,
+  );
+  const [apps, changes, [interested]] = await Promise.all([
+    db.select({ id: applications.id, status: applications.status }).from(applications).where(target),
+    db
+      .select({ applicationId: statusChanges.applicationId, toStatus: statusChanges.toStatus })
+      .from(statusChanges)
+      .innerJoin(applications, eq(statusChanges.applicationId, applications.id))
+      .where(target),
+    db.select({ total: count() }).from(applications).where(eq(applications.status, "interested")),
+  ]);
+  return { apps, changes, interested: interested?.total ?? 0 };
 }

@@ -1,0 +1,170 @@
+// 통계 화면 그래프. 라이브러리 없이 HTML·Tailwind·인라인 SVG로 그린다 (서버 컴포넌트, JS 없음).
+// 규칙: 막대는 24px 이하·위쪽만 둥글게, 숫자 글자는 데이터 색을 입지 않는다, 마우스·키보드 포커스로 자세한 값을 본다.
+import type { FunnelRow } from "@/lib/stats";
+import { formatRate } from "@/lib/stats";
+import { STATUS_LABEL } from "@/lib/labels";
+
+/** 비율 하나를 가로 막대로 (같은 파랑 계열의 연한 바탕 위에 채움) */
+export function Meter({ rate, label }: { rate: number | null; label: string }) {
+  const pct = Math.round((rate ?? 0) * 100);
+  return (
+    <div
+      role="meter"
+      aria-label={label}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={pct}
+      className="h-1.5 w-full rounded-full bg-blue-100 dark:bg-blue-950"
+    >
+      {pct > 0 && <div className="h-full rounded-full bg-blue-600 dark:bg-blue-500" style={{ width: `${pct}%` }} />}
+    </div>
+  );
+}
+
+/** 마우스를 올리거나 포커스하면 보이는 말풍선 */
+function Tip({ children, align = "center" }: { children: React.ReactNode; align?: "start" | "center" | "end" }) {
+  const pos = { start: "left-0", center: "left-1/2 -translate-x-1/2", end: "right-0" }[align];
+  return (
+    <span
+      role="tooltip"
+      className={`pointer-events-none absolute -top-2 z-10 hidden -translate-y-full rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs whitespace-nowrap shadow-lg group-hover:block group-focus-visible:block dark:border-zinc-700 dark:bg-zinc-900 ${pos}`}
+    >
+      {children}
+    </span>
+  );
+}
+
+/**
+ * 단계별 세로 막대 + 막대 사이의 흐름 띠.
+ * 막대 높이 = 지원 대비 건수, 띠는 앞 단계에서 다음 단계로 남은 양을 잇고 가운데에 전환율을 적는다.
+ */
+export function FunnelChart({ stages }: { stages: FunnelRow[] }) {
+  const total = stages[0].count;
+  const pct = (n: number) => (total === 0 ? 0 : (n / total) * 100);
+  const columns = stages.flatMap((_, k) => (k === 0 ? ["24px"] : ["minmax(0,1fr)", "24px"])).join(" ");
+
+  return (
+    <div className="pt-8">
+      {/* 그림 영역: 막대 위 숫자 자리를 위해 위쪽을 비운다 */}
+      <div
+        className="relative grid h-44 border-b border-zinc-200 dark:border-zinc-800"
+        style={{ gridTemplateColumns: columns }}
+      >
+        {stages.map((s, k) => {
+          const h = pct(s.count);
+          const prev = stages[k - 1];
+          return [
+            k > 0 && prev && (
+              <div key={`band-${s.status}`} className="relative" aria-hidden>
+                <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 h-full w-full">
+                  <polygon
+                    points={`0,${100 - pct(prev.count)} 100,${100 - h} 100,100 0,100`}
+                    className="fill-blue-500/10 dark:fill-blue-400/10"
+                  />
+                </svg>
+              </div>
+            ),
+            <div
+              key={s.status}
+              tabIndex={0}
+              aria-label={`${STATUS_LABEL[s.status]} ${s.count}건`}
+              className="group relative outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            >
+              {/* 막대 (건수가 0이면 그리지 않는다) */}
+              {s.count > 0 && (
+                <div
+                  className="absolute inset-x-0 bottom-0 rounded-t bg-blue-600 transition-opacity group-hover:opacity-80 dark:bg-blue-500"
+                  style={{ height: `${h}%` }}
+                />
+              )}
+              {/* 막대 끝의 건수 (0건은 흐리게) */}
+              <span
+                data-count
+                className={`absolute left-1/2 -translate-x-1/2 text-sm font-semibold tabular-nums ${s.count === 0 ? "text-zinc-400 dark:text-zinc-600" : ""}`}
+                style={{ bottom: `calc(${h}% + 4px)` }}
+              >
+                {s.count}
+              </span>
+              <Tip align={k === 0 ? "start" : k === stages.length - 1 ? "end" : "center"}>
+                <span className="font-semibold">{s.count}건</span>{" "}
+                <span className="text-zinc-500">{STATUS_LABEL[s.status]}</span>
+                <br />
+                <span className="text-zinc-500">
+                  이전 단계 대비 {formatRate(s.fromPrev)} · 지원 대비 {formatRate(s.fromFirst)}
+                </span>
+              </Tip>
+            </div>,
+          ];
+        })}
+      </div>
+      {/* 가로축: 단계 이름을 막대 가운데에 */}
+      <div className="grid h-6" style={{ gridTemplateColumns: columns }}>
+        {stages.map((s, k) => [
+          k > 0 && <span key={`gap-${s.status}`} />,
+          <span key={s.status} className="relative">
+            <span className="absolute top-1.5 left-1/2 -translate-x-1/2 text-xs whitespace-nowrap text-zinc-600 dark:text-zinc-300">
+              {STATUS_LABEL[s.status]}
+            </span>
+          </span>,
+        ])}
+      </div>
+      {/* 전환율: 그림 위에 얹지 않고 단계 이름 아래 줄, 두 막대 사이 가운데에 */}
+      <div className="mt-1 grid h-6" style={{ gridTemplateColumns: columns }}>
+        {stages.map((s, k) => [
+          k > 0 && (
+            <span key={`rate-${s.status}`} className="flex items-center justify-center">
+              <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] whitespace-nowrap text-zinc-600 tabular-nums dark:bg-zinc-800 dark:text-zinc-300">
+                → {formatRate(s.fromPrev)}
+              </span>
+            </span>
+          ),
+          <span key={`rate-gap-${s.status}`} />,
+        ])}
+      </div>
+    </div>
+  );
+}
+
+export type StatusPart = { key: string; label: string; value: number; fill: string; ink: string };
+
+/** 하나의 전체(지원 건)를 상태별 덩어리로 나눈 두꺼운 막대. 덩어리 안에 건수, 아래에 범례 */
+export function StatusBar({ parts }: { parts: StatusPart[] }) {
+  const total = parts.reduce((a, p) => a + p.value, 0);
+  const shown = parts.filter((p) => p.value > 0);
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex h-7 gap-0.5" role="img" aria-label={parts.map((p) => `${p.label} ${p.value}건`).join(", ")}>
+        {shown.map((p, i) => {
+          const share = p.value / total;
+          return (
+            <div
+              key={p.key}
+              tabIndex={0}
+              className={`group relative flex min-w-0 items-center rounded px-2 outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${p.fill}`}
+              style={{ flexGrow: p.value, flexBasis: 0 }}
+            >
+              {/* 좁아서 안 들어가면 적지 않는다 (말풍선과 범례에 있다) */}
+              {share >= 0.1 && (
+                <span className={`text-xs font-semibold whitespace-nowrap tabular-nums ${p.ink}`}>{formatRate(share)}</span>
+              )}
+              <Tip align={i === 0 ? "start" : i === shown.length - 1 ? "end" : "center"}>
+                <span className="font-semibold">{p.value}건</span> <span className="text-zinc-500">{p.label}</span>
+              </Tip>
+            </div>
+          );
+        })}
+      </div>
+      <ul className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
+        {parts.map((p) => (
+          <li key={p.key} className="flex items-center gap-1.5">
+            <span className={`size-2.5 rounded-sm ${p.fill}`} aria-hidden />
+            <span className="text-zinc-600 dark:text-zinc-300">{p.label}</span>
+            <span data-count className="font-semibold tabular-nums">
+              {p.value}건
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
