@@ -2,6 +2,7 @@
 export const NAV_ITEMS = [
   { key: "applications", href: "/", label: "지원 목록" },
   { key: "week", href: "/week", label: "주간" },
+  { key: "month", href: "/month", label: "월간" },
   { key: "stats", href: "/stats", label: "통계" },
 ] as const;
 
@@ -12,6 +13,7 @@ const under = (pathname: string, base: string) => pathname === base || pathname.
 export function activeNav(pathname: string): NavKey | null {
   if (pathname === "/" || under(pathname, "/applications")) return "applications";
   if (under(pathname, "/week")) return "week";
+  if (under(pathname, "/month")) return "month";
   if (under(pathname, "/stats")) return "stats";
   return null;
 }

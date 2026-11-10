@@ -138,7 +138,8 @@ export function WeekCalendar({
   );
 }
 
-function Summary({ summary }: { summary: WeekSummary }) {
+/** 요약 4칸 (월간 화면도 같이 쓴다) */
+export function Summary({ summary }: { summary: WeekSummary }) {
   const cells = [
     { label: "신규 지원", value: `${summary.applied}` },
     { label: "일정 (완료/전체)", value: `${summary.eventsDone}/${summary.events}` },

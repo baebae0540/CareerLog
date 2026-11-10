@@ -8,13 +8,15 @@ describe("activeNav", () => {
     }
   });
 
-  it("주간·통계", () => {
+  it("주간·월간·통계", () => {
     expect(activeNav("/week")).toBe("week");
+    expect(activeNav("/month")).toBe("month");
     expect(activeNav("/stats")).toBe("stats");
   });
 
   it("이름이 비슷한 다른 주소는 고르지 않는다", () => {
     expect(activeNav("/weekly")).toBeNull();
+    expect(activeNav("/monthly")).toBeNull();
     expect(activeNav("/statsx")).toBeNull();
     expect(activeNav("/login")).toBeNull();
   });

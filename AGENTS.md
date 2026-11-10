@@ -57,6 +57,7 @@ src/
   lib/labels.ts         상태·일정 종류의 한국어 이름과 색
   lib/week.ts           주간 화면 묶기·요약 숫자 (순수 함수, 테스트 있음)
   lib/stats.ts          통계 퍼널·기간·지원 경로별 계산 (순수 함수, 테스트 있음)
+  lib/month.ts          월간 달력 주 범위·월 이동·월 요약 (순수 함수, 테스트 있음)
   lib/trend.ts          통계 주별 추이 (WeekData를 주 단위로 집계, 순수 함수, 테스트 있음)
   lib/csv.ts            지원 목록 CSV (BOM·CRLF·따옴표·수식 막기, 테스트 있음)
   lib/nav.ts            헤더 메뉴 목록, 주소 → 현재 메뉴 (테스트 있음)
@@ -70,8 +71,9 @@ src/
     event-item.tsx      일정 한 줄 (완료 표시·수정·삭제)
     stats-charts.tsx    통계 그래프 (퍼널 세로 막대+흐름 띠, 상태 나눔 막대, 비율 막대, 지원 경로별 표, 주별 추이). 라이브러리 없이 HTML·SVG, 말풍선은 CSS
     image-gallery.tsx   지원 건 사진 (클라이언트). 올리기(버튼·끌어 놓기·붙여넣기, 브라우저에서 축소)·썸네일·<dialog> 크게 보기·삭제
-    week-calendar.tsx   주간 캘린더 (클라이언트). @dnd-kit/core로 드래그해 날짜 이동, useOptimistic으로 먼저 반영
-    nav-links.tsx       헤더 메뉴 (클라이언트). 지금 화면은 굵은 글자 + 아래 막대 (lib/nav.ts의 activeNav)
+    week-calendar.tsx   주간 캘린더 (클라이언트). @dnd-kit/core로 드래그해 날짜 이동, useOptimistic으로 먼저 반영. 요약 4칸 `Summary`는 월간도 쓴다
+    month-calendar.tsx  월간 달력 (서버 컴포넌트, 드래그 없음). md 이상은 7칸 달력(칸당 3개 + "+N개 더"), 좁은 화면은 항목 있는 날만 목록
+    nav-links.tsx       헤더 메뉴 (클라이언트, 지원 목록·주간·월간·통계). 지금 화면은 굵은 글자 + 아래 막대 (lib/nav.ts의 activeNav)
   app/login/            로그인 화면·액션
   app/(app)/            로그인 후 화면 (layout에서 requireLogin)
     page.tsx            지원 목록 (/?status=로 필터)
@@ -79,6 +81,7 @@ src/
       [id]/images/[imageId]/route.ts  사진 내려주기 (로그인 확인, 401)
       export/route.ts   지원 목록 CSV 내려받기 (/applications/export?status=, 로그인 확인)
     week/               주간 캘린더 (/week?start=기준 주 일요일), actions.ts(moveWeekItem)
+    month/              월간 달력 (/month?m=YYYY-MM)
     stats/              통계 (/stats?period=all|90d|30d), 단계별 퍼널·전환율
 drizzle/                마이그레이션 SQL (drizzle-kit이 생성, 커밋함)
 ```
@@ -180,6 +183,12 @@ dev 서버가 남아 있으면(포트 3000 사용 중): 맥 `lsof -ti tcp:3000 |
   - 지표 3줄: 신규 지원(지원일), 다음 단계 진출(서류 통과·면접·최종·합격으로 바뀐 변경일, `isShownStatusChange` 기준), 완료한 일정(일정 날짜). 세 줄이 같은 높이 기준.
   - 재료는 주간 화면과 같은 `getWeekData(시작, 84)`. 막대를 누르면 그 주 `/week?start=`. 이번 주는 연한 막대, 390px은 축 날짜를 한 주 걸러 표시. 표로 보기.
   - 실제 DB + headless Chrome으로 12주 숫자를 SQL 계산과 대조(토 23:30·일 0시 경계 포함), 말풍선, 링크, 390px 등 18개 확인. 테스트 84개.
+- 2026-11-10: **월간 보기.** `/month?m=YYYY-MM`, 헤더에 "월간" (주간과 통계 사이). 스키마 변경 없음.
+  - 일요일 시작 달력, 1일이 든 주~말일이 든 주(4~6주). 앞뒤 달 날짜도 칸에 보이지만 흐리게, 요약 4칸(주간과 같은 항목)에는 이 달 날짜만 센다.
+  - 재료는 `getWeekData(첫 일요일, 주 수×7)` + 주마다 `buildWeek` (주간 화면과 같은 기준·정렬). 드래그는 없다 (날짜 이동은 주간 화면).
+  - 칸마다 최대 3개, 넘치면 "+N개 더". 날짜·"+N개 더"를 누르면 그 주 `/week?start=`, 항목을 누르면 상세. 잘못된 `?m=`은 `/month`로.
+  - 좁은 화면(md 미만)은 달력 대신 항목 있는 날만 세로 목록.
+  - 실제 DB + headless Chrome으로 요약·날짜별 항목 수를 SQL과 대조, 경계(토 23:30·일 0시·다음 달), 6주 달, 링크, 390px 등 19개 확인. 테스트 91개.
 
 ## 다음 할 일
 
@@ -201,7 +210,9 @@ dev 서버가 남아 있으면(포트 3000 사용 중): 맥 `lsof -ti tcp:3000 |
 - [ ] 지원 경로별 확인 (개발자): 배포 주소에서 /stats 맨 아래 카드
 - [x] 주별 추이 — 코드 완료
 - [ ] 주별 추이 확인 (개발자): 배포 주소에서 /stats 맨 아래 카드, 막대 눌러 주간 이동
-- 이후 후보: 월간 보기(약 1.5~2일)
+- [x] 월간 보기 — 코드 완료
+- [ ] 월간 확인 (개발자): 배포 주소에서 /month, 폰에서 목록 모양
+- 계획한 후보 기능은 모두 끝났다. 다음은 개발자 요청에 따라
 
 <!-- BEGIN:nextjs-agent-rules -->
 
