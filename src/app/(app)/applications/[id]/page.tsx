@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getApplication, getEvents, getStatusHistory } from "@/db/queries";
+import { getApplication, getEvents, getStatusHistory, listImages } from "@/db/queries";
 import { DeleteForm } from "@/components/delete-button";
 import { EventAddForm } from "@/components/event-form";
 import { EventItem } from "@/components/event-item";
+import { ImageGallery } from "@/components/image-gallery";
 import { HistoryItem } from "@/components/history-item";
 import { StatusBadge } from "@/components/status-badge";
 import { StatusChangeForm } from "@/components/status-change-form";
@@ -18,9 +19,11 @@ import {
   deleteApplication,
   deleteEvent,
   deleteHistory,
+  deleteImage,
   setEventDone,
   updateEvent,
   updateHistory,
+  uploadImages,
 } from "../actions";
 
 export default async function ApplicationDetailPage(props: PageProps<"/applications/[id]">) {
@@ -28,7 +31,12 @@ export default async function ApplicationDetailPage(props: PageProps<"/applicati
   const id = parseId((await props.params).id);
   if (!id) notFound();
 
-  const [app, history, events] = await Promise.all([getApplication(id), getStatusHistory(id), getEvents(id)]);
+  const [app, history, events, images] = await Promise.all([
+    getApplication(id),
+    getStatusHistory(id),
+    getEvents(id),
+    listImages(id),
+  ]);
   if (!app) notFound();
   const today = todayInSeoul();
   const latestId = history.at(-1)?.id;
@@ -55,7 +63,7 @@ export default async function ApplicationDetailPage(props: PageProps<"/applicati
           </Link>
           <DeleteForm
             action={deleteApplication.bind(null, app.id)}
-            confirmMessage={`'${app.company}' 지원 건을 삭제할까요?\n상태 이력과 일정도 함께 삭제되며 되돌릴 수 없습니다.`}
+            confirmMessage={`'${app.company}' 지원 건을 삭제할까요?\n상태 이력·일정·사진도 함께 삭제되며 되돌릴 수 없습니다.`}
           />
         </div>
       </div>
@@ -77,6 +85,16 @@ export default async function ApplicationDetailPage(props: PageProps<"/applicati
           <div className="sm:col-span-3">
             <Item label="메모">
               {app.memo ? <p className="whitespace-pre-wrap">{app.memo}</p> : <span className="text-zinc-400">메모 없음</span>}
+            </Item>
+          </div>
+          <div className="sm:col-span-3">
+            <Item label="사진">
+              <ImageGallery
+                applicationId={app.id}
+                images={images.map(({ id, size, width, height }) => ({ id, size, width, height }))}
+                uploadAction={uploadImages.bind(null, app.id)}
+                deleteAction={deleteImage.bind(null, app.id)}
+              />
             </Item>
           </div>
         </dl>

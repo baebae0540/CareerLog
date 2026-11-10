@@ -1,10 +1,10 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { and, count, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db";
-import { applications, events } from "@/db/schema";
+import { applicationImages, applications, events } from "@/db/schema";
 import {
   changeStatusWithHistory,
   deleteLatestHistoryEntry,
@@ -22,6 +22,13 @@ import {
 } from "@/lib/application-input";
 import { seoulParts, todayInSeoul } from "@/lib/dates";
 import { parseEventForm, type EventFormState } from "@/lib/event-input";
+import {
+  detectImageType,
+  formatBytes,
+  MAX_IMAGE_BYTES,
+  MAX_IMAGES_PER_APPLICATION,
+  parseDimension,
+} from "@/lib/image-input";
 import { requireLogin } from "@/lib/session";
 
 /** 상태 변경. 상태는 이 액션으로만 바꾼다 (이력 기록이 한 곳에 있도록, AGENTS.md 규칙). */
@@ -208,4 +215,66 @@ export async function deleteEvent(applicationId: number, eventId: number) {
   await requireLogin();
   await getDb().delete(events).where(eventOf(applicationId, eventId));
   revalidateApplication(applicationId);
+}
+
+// ── 사진 ──────────────────────────────────────────────
+
+export type ImageUploadState = { message?: string; savedAt?: number };
+
+/**
+ * 사진 올리기. formData: file(여러 개), 같은 순서의 width·height.
+ * 브라우저에서 이미 줄여서 보내지만 크기·형식은 여기서 다시 확인한다.
+ */
+export async function uploadImages(
+  applicationId: number,
+  _prev: ImageUploadState,
+  formData: FormData,
+): Promise<ImageUploadState> {
+  await requireLogin();
+  const files = formData.getAll("file").filter((f): f is File => f instanceof File && f.size > 0);
+  if (files.length === 0) return { message: "올릴 사진을 골라 주세요." };
+  const widths = formData.getAll("width");
+  const heights = formData.getAll("height");
+
+  const db = getDb();
+  const [app] = await db.select({ id: applications.id }).from(applications).where(eq(applications.id, applicationId));
+  if (!app) return { message: "이미 삭제된 지원 건입니다." };
+
+  const [{ total }] = await db
+    .select({ total: count() })
+    .from(applicationImages)
+    .where(eq(applicationImages.applicationId, applicationId));
+  if (total + files.length > MAX_IMAGES_PER_APPLICATION) {
+    return { message: `사진은 지원 건마다 ${MAX_IMAGES_PER_APPLICATION}장까지 올릴 수 있습니다 (지금 ${total}장).` };
+  }
+
+  const rows = [];
+  for (const [i, file] of files.entries()) {
+    if (file.size > MAX_IMAGE_BYTES) {
+      return { message: `사진이 너무 큽니다: ${file.name} (${formatBytes(file.size)}, 최대 ${formatBytes(MAX_IMAGE_BYTES)})` };
+    }
+    const data = Buffer.from(await file.arrayBuffer());
+    const mime = detectImageType(data);
+    if (!mime) return { message: `PNG·JPG·WebP·GIF 사진만 올릴 수 있습니다: ${file.name}` };
+    rows.push({
+      applicationId,
+      mime,
+      data,
+      size: data.length,
+      width: parseDimension(widths[i] ?? null),
+      height: parseDimension(heights[i] ?? null),
+    });
+  }
+
+  await db.insert(applicationImages).values(rows);
+  revalidatePath(`/applications/${applicationId}`);
+  return { savedAt: Date.now() };
+}
+
+export async function deleteImage(applicationId: number, imageId: number) {
+  await requireLogin();
+  await getDb()
+    .delete(applicationImages)
+    .where(and(eq(applicationImages.id, imageId), eq(applicationImages.applicationId, applicationId)));
+  revalidatePath(`/applications/${applicationId}`);
 }

@@ -1,7 +1,7 @@
 import "server-only";
 import { and, asc, count, desc, eq, gte, isNotNull, lt, lte, ne } from "drizzle-orm";
 import { getDb } from "@/db";
-import { applications, events, statusChanges, type ApplicationStatus } from "@/db/schema";
+import { applicationImages, applications, events, statusChanges, type ApplicationStatus } from "@/db/schema";
 import { addDays, seoulDateTime } from "@/lib/dates";
 import type { FunnelApp, FunnelChange } from "@/lib/stats";
 import type { WeekData } from "@/lib/week";
@@ -119,4 +119,29 @@ export async function getStatsData(
     db.select({ total: count() }).from(applications).where(eq(applications.status, "interested")),
   ]);
   return { apps, changes, interested: interested?.total ?? 0 };
+}
+
+/** 사진 목록 (바이트는 빼고 정보만, 올린 순서대로) */
+export async function listImages(applicationId: number) {
+  return getDb()
+    .select({
+      id: applicationImages.id,
+      mime: applicationImages.mime,
+      size: applicationImages.size,
+      width: applicationImages.width,
+      height: applicationImages.height,
+      createdAt: applicationImages.createdAt,
+    })
+    .from(applicationImages)
+    .where(eq(applicationImages.applicationId, applicationId))
+    .orderBy(asc(applicationImages.id));
+}
+
+/** 사진 한 장 (바이트 포함) */
+export async function getImage(applicationId: number, imageId: number) {
+  const [row] = await getDb()
+    .select({ mime: applicationImages.mime, data: applicationImages.data })
+    .from(applicationImages)
+    .where(and(eq(applicationImages.id, imageId), eq(applicationImages.applicationId, applicationId)));
+  return row;
 }

@@ -34,6 +34,10 @@ AI 에이전트(Claude Code 등)가 세션을 시작할 때 가장 먼저 읽는
   - 앞 쿼리의 결과(id 등)가 뒤 쿼리에 필요 → `src/db/statements.ts`에 CTE 한 문장으로 쓴다
   - Drizzle `insert().select()`는 **모든 컬럼을 정의 순서대로** 골라야 해서 CTE에 맞지 않는다. 빌더를 `sql` 템플릿에 끼우면 괄호가 이중으로 감싸지고, 컬럼 `.name`은 값($n)으로 들어간다. 그래서 statements.ts는 SQL을 직접 쓰고 값만 파라미터로 넘긴다
   - statements.ts를 바꾸면 실제 DB에 한 번 실행해 본다 (검증용 행은 바로 삭제)
+- 사진은 DB(`application_images.data`, bytea)에 저장한다. Vercel 함수 디스크는 요청마다 사라져서 파일로 둘 수 없다.
+  - drizzle pg-core에 bytea가 없어 `schema.ts`에 customType으로 정의. neon 드라이버는 Buffer 파라미터를 `\x` 16진수로 보낸다
+  - 서버 액션 요청 한도 기본 1MB → `next.config.ts`에서 4mb. 브라우저가 줄이고(긴 변 2000px) 3.5MB 묶음으로 나눠 보낸다
+  - 목록 조회(`listImages`)는 바이트를 빼고, 사진은 라우트(`applications/[id]/images/[imageId]`)로 따로 내려준다
 
 ## 구조
 
@@ -53,6 +57,7 @@ src/
   lib/labels.ts         상태·일정 종류의 한국어 이름과 색
   lib/week.ts           주간 화면 묶기·요약 숫자 (순수 함수, 테스트 있음)
   lib/stats.ts          통계 퍼널·기간 계산 (순수 함수, 테스트 있음)
+  lib/image-input.ts    사진 형식 판별(시그니처)·축소 크기·한도 (순수 함수, 테스트 있음)
   components/           폼·배지·삭제 버튼, 공통 클래스(ui.ts)
     field.tsx           Field(라벨·입력·안내 줄), FormSection — 새 폼은 이것으로 만든다
     select.tsx          선택 상자 (네이티브 <select> 대신 이것을 쓴다)
@@ -61,11 +66,13 @@ src/
     event-form.tsx      일정 추가·수정 폼 (EventAddForm은 버튼으로 펼침)
     event-item.tsx      일정 한 줄 (완료 표시·수정·삭제)
     stats-charts.tsx    통계 그래프 (퍼널 세로 막대+흐름 띠, 상태 나눔 막대, 비율 막대). 라이브러리 없이 HTML·SVG, 말풍선은 CSS
+    image-gallery.tsx   지원 건 사진 (클라이언트). 올리기(버튼·끌어 놓기·붙여넣기, 브라우저에서 축소)·썸네일·<dialog> 크게 보기·삭제
     week-calendar.tsx   주간 캘린더 (클라이언트). @dnd-kit/core로 드래그해 날짜 이동, useOptimistic으로 먼저 반영
   app/login/            로그인 화면·액션
   app/(app)/            로그인 후 화면 (layout에서 requireLogin)
     page.tsx            지원 목록 (/?status=로 필터)
     applications/       등록(new)·상세([id])·수정([id]/edit), actions.ts
+      [id]/images/[imageId]/route.ts  사진 내려주기 (로그인 확인, 401)
     week/               주간 캘린더 (/week?start=기준 주 일요일), actions.ts(moveWeekItem)
     stats/              통계 (/stats?period=all|90d|30d), 단계별 퍼널·전환율
 drizzle/                마이그레이션 SQL (drizzle-kit이 생성, 커밋함)
@@ -145,6 +152,11 @@ dev 서버가 남아 있으면(포트 3000 사용 중): 맥 `lsof -ti tcp:3000 |
   - 화면: 핵심 숫자 4칸(지원·서류 통과율·면접 진출률·합격률, 비율 막대) → 단계별 세로 막대 그래프(막대 사이 흐름 띠, 이전 단계 대비 %는 단계 이름 아래 줄, 마우스·키보드 말풍선, 표로 보기) → 지금 상태 나눔 막대(진행 중·합격·보류·불합격). 라이브러리 없이 HTML·SVG.
   - 상태 막대 색 순서는 초록·빨강이 붙지 않게 보류(회색)를 사이에 둔다 (색각 검사).
   - 실제 DB + headless Chrome으로 기간 3종의 숫자를 SQL 계산과 대조, 잘못된 기간 리다이렉트, 헤더 링크, 말풍선, 390px 확인 (11개). WebKit(Safari 엔진)에서도 확인. 테스트 59개.
+- 2026-11-10: **지원 건 사진 첨부** (개발자 요청, PLAN.md "하지 않을 것"의 파일 첨부 예외). 상세 화면 '지원 정보' 카드의 메모 아래.
+  - 저장은 Neon DB(bytea, 마이그레이션 0003 `application_images`). 지원 건 삭제 시 cascade. 장당 2MB, 지원 건당 30장.
+  - 올리기: 사진 추가 버튼·끌어 놓기·붙여넣기(입력 칸 밖에서 ⌘/Ctrl+V). 긴 변 2000px 초과나 1.5MB 초과면 브라우저에서 JPEG(0.85)로 줄인다. GIF는 원본 유지.
+  - 서버에서 크기·시그니처(png/jpeg/webp/gif)를 다시 확인한다. 사진 주소는 로그인 없으면 401, `Cache-Control: private, immutable`.
+  - 썸네일을 누르면 크게 보기(이전·다음·←/→, Esc·바깥 클릭 닫기, 원본 새 탭, 삭제). 테스트 65개.
 
 ## 다음 할 일
 
@@ -158,6 +170,8 @@ dev 서버가 남아 있으면(포트 3000 사용 중): 맥 `lsof -ti tcp:3000 |
 - [ ] 3단계 확인 (개발자): 배포 주소에서 3주 화면, 드래그로 날짜 이동 (특히 실제 폰에서 길게 눌러 끌기)
 - [x] 대시보드 통계 (퍼널·전환율) — 코드 완료
 - [ ] 통계 확인 (개발자): 배포 주소에서 /stats 기간별 숫자
+- [ ] 마이그레이션 0003 적용 (개발자, push 전에)
+- [ ] 사진 확인 (개발자): 배포 주소에서 사진 올리기·크게 보기·삭제, 폰에서 사진 고르기
 - 이후 후보 (PLAN.md): CSV 내보내기, 월간 보기. 통계 추가 후보: 지원 경로별 성과, 주별 추이
 
 <!-- BEGIN:nextjs-agent-rules -->

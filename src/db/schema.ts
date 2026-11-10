@@ -1,5 +1,6 @@
 import {
   boolean,
+  customType,
   date,
   index,
   integer,
@@ -28,6 +29,14 @@ export const eventKind = pgEnum("event_kind", [
   "deadline", // 마감
   "other", // 기타
 ]);
+
+// 바이트 그대로 저장하는 열. drizzle pg-core에 내장이 없어 직접 정의한다.
+// neon 드라이버는 Buffer 파라미터를 '\\x..' 16진수로 보내고, 결과는 Buffer로 돌려준다
+// (혹시 문자열로 오면 16진수로 해석한다).
+const bytea = customType<{ data: Buffer; driverData: Buffer | string }>({
+  dataType: () => "bytea",
+  fromDriver: (v) => (typeof v === "string" ? Buffer.from(v.replace(/^\\x/, ""), "hex") : v),
+});
 
 const timestamps = {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -97,6 +106,24 @@ export const events = pgTable(
     index("events_application_idx").on(t.applicationId),
     index("events_starts_at_idx").on(t.startsAt),
   ],
+);
+
+/** 지원 건 사진. 상세 화면에서 올리고, /applications/[id]/images/[imageId]로 내려준다. */
+export const applicationImages = pgTable(
+  "application_images",
+  {
+    id: serial("id").primaryKey(),
+    applicationId: integer("application_id")
+      .notNull()
+      .references(() => applications.id, { onDelete: "cascade" }),
+    mime: text("mime").notNull(), // 시그니처로 판별한 형식 (image/png 등)
+    data: bytea("data").notNull(),
+    size: integer("size").notNull(), // 바이트
+    width: integer("width"),
+    height: integer("height"),
+    createdAt: timestamps.createdAt,
+  },
+  (t) => [index("application_images_application_idx").on(t.applicationId)],
 );
 
 export type Application = typeof applications.$inferSelect;
