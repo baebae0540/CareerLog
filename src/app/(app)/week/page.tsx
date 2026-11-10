@@ -61,7 +61,7 @@ export default async function WeekPage(props: PageProps<"/week">) {
         </nav>
       </div>
 
-      <p className="text-xs text-zinc-500">항목을 다른 날짜로 끌어다 놓으면 날짜가 바뀝니다. 폰에서는 길게 눌러서 끕니다.</p>
+      <p className="text-xs text-zinc-500">항목을 드래그하여 다른 날짜에 놓으면 날짜가 바뀝니다.</p>
 
       <WeekCalendar weeks={weeks} focusStart={start} today={today} data={data} />
     </section>

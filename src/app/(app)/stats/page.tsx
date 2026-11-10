@@ -1,14 +1,15 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getStatsData } from "@/db/queries";
-import { FunnelChart, Meter, SourceTable, StatusBar, type StatusPart } from "@/components/stats-charts";
+import { getStatsData, getWeekData } from "@/db/queries";
+import { FunnelChart, Meter, SourceTable, StatusBar, TrendChart, type StatusPart } from "@/components/stats-charts";
 import { cardClass } from "@/components/ui";
-import { formatYmd, todayInSeoul } from "@/lib/dates";
+import { formatWeekRange, formatYmd, todayInSeoul, weekStart } from "@/lib/dates";
 import { STATUS_LABEL } from "@/lib/labels";
 import { requireLogin } from "@/lib/session";
+import { buildWeeklyTrend, TREND_METRICS, TREND_WEEKS, trendFrom } from "@/lib/trend";
 import { buildFunnel, buildSourceStats, formatRate, parsePeriod, periodFrom, PERIOD_LABEL, STATS_PERIODS } from "@/lib/stats";
 
-// 화면 구성: ① 핵심 숫자 4칸(비율 막대) → ② 단계별 전환 그래프 → ③ 지금 상태 막대 → ④ 지원 경로별 → 집계 안내.
+// 화면 구성: ① 핵심 숫자 4칸(비율 막대) → ② 단계별 전환 그래프 → ③ 지금 상태 막대 → ④ 지원 경로별 → ⑤ 주별 추이(기간 선택과 무관하게 최근 12주) → 집계 안내.
 // 단계는 순서가 있는 한 묶음이라 한 가지 색(파랑)으로 높이만 비교한다. 그래프는 src/components/stats-charts.tsx
 export default async function StatsPage(props: PageProps<"/stats">) {
   await requireLogin();
@@ -17,7 +18,12 @@ export default async function StatsPage(props: PageProps<"/stats">) {
 
   const today = todayInSeoul();
   const from = periodFrom(period, today);
-  const { apps, changes, interested } = await getStatsData(from);
+  const trendStart = trendFrom(weekStart(today));
+  const [{ apps, changes, interested }, trendData] = await Promise.all([
+    getStatsData(from),
+    getWeekData(trendStart, TREND_WEEKS * 7),
+  ]);
+  const trend = buildWeeklyTrend(trendStart, TREND_WEEKS, trendData);
   const { stages, outcome } = buildFunnel(apps, changes);
   const sources = buildSourceStats(apps, changes);
   const total = stages[0].count;
@@ -124,6 +130,52 @@ export default async function StatsPage(props: PageProps<"/stats">) {
           </div>
         </>
       )}
+
+      {/* ⑤ 주별 추이: 위의 기간 선택과 상관없이 최근 12주 */}
+      <div className={`${cardClass} flex flex-col gap-3 p-4 sm:p-6`}>
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+          <h2 className="font-semibold">주별 추이</h2>
+          <span className="text-xs text-zinc-500">최근 {TREND_WEEKS}주 · 기간 선택과 무관 · 막대를 누르면 그 주로</span>
+        </div>
+        <TrendChart weeks={trend} />
+        <details className="text-sm">
+          <summary className="cursor-pointer text-xs text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100">
+            표로 보기
+          </summary>
+          <table className="mt-2 w-full text-left tabular-nums">
+            <thead className="text-xs text-zinc-500">
+              <tr>
+                <th className="py-1 font-normal">주 (일~토)</th>
+                {TREND_METRICS.map((m) => (
+                  <th key={m.key} className="py-1 text-right font-normal">
+                    {m.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+              {trend.toReversed().map((w) => (
+                <tr key={w.start}>
+                  <td className="py-1.5">{formatWeekRange(w.start)}</td>
+                  {TREND_METRICS.map((m) => (
+                    <td key={m.key} className="py-1.5 text-right">
+                      {w[m.key]}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </details>
+        <ul className="flex flex-col gap-0.5 text-xs text-zinc-500">
+          {TREND_METRICS.map((m) => (
+            <li key={m.key}>
+              {m.label}: {m.hint}
+            </li>
+          ))}
+          <li>이번 주(연한 막대)는 아직 진행 중입니다.</li>
+        </ul>
+      </div>
 
       {/* 집계 안내 */}
       <div className="flex flex-col gap-1 text-xs text-zinc-500">

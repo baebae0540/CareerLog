@@ -1,6 +1,9 @@
 // 통계 화면 그래프. 라이브러리 없이 HTML·Tailwind·인라인 SVG로 그린다 (서버 컴포넌트, JS 없음).
 // 규칙: 막대는 24px 이하·위쪽만 둥글게, 숫자 글자는 데이터 색을 입지 않는다, 마우스·키보드 포커스로 자세한 값을 본다.
+import Link from "next/link";
+import { formatWeekRange } from "@/lib/dates";
 import type { FunnelRow, SourceRow } from "@/lib/stats";
+import { TREND_METRICS, type TrendWeek } from "@/lib/trend";
 import { formatRate } from "@/lib/stats";
 import { STATUS_LABEL } from "@/lib/labels";
 
@@ -222,6 +225,89 @@ export function SourceTable({ rows }: { rows: SourceRow[] }) {
               })}
             </div>
           </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** "2026-11-08" → "11/8" */
+function shortDate(ymd: string): string {
+  const [, m, d] = ymd.split("-").map(Number);
+  return `${m}/${d}`;
+}
+
+/**
+ * 주별 추이: 지표마다 한 줄씩 주별 세로 막대 (작은 그래프 여러 개).
+ * 세 줄이 같은 높이 기준을 써서 줄끼리 크기를 비교할 수 있다. 막대를 누르면 그 주의 주간 화면으로 간다.
+ */
+export function TrendChart({ weeks }: { weeks: TrendWeek[] }) {
+  const max = Math.max(1, ...weeks.flatMap((w) => TREND_METRICS.map((m) => w[m.key])));
+  const cols = { gridTemplateColumns: `repeat(${weeks.length}, minmax(0, 1fr))` };
+  const last = weeks.length - 1;
+
+  return (
+    <div className="flex flex-col gap-4">
+      {TREND_METRICS.map((m) => {
+        const total = weeks.reduce((a, w) => a + w[m.key], 0);
+        return (
+          <div key={m.key} className="flex flex-col gap-1" data-metric={m.key}>
+            <div className="flex items-baseline justify-between gap-3 text-sm">
+              <span className="font-medium">{m.label}</span>
+              <span className="text-xs text-zinc-500 tabular-nums">
+                {weeks.length}주 합계 <span data-total className="font-semibold text-zinc-900 dark:text-zinc-100">{total}</span>
+              </span>
+            </div>
+            {/* 위쪽 여백은 막대 위 숫자 자리 */}
+            <div className="grid h-16 border-b border-zinc-200 pt-4 dark:border-zinc-800" style={cols}>
+              {weeks.map((w, i) => {
+                const v = w[m.key];
+                const h = (v / max) * 100;
+                return (
+                  <Link
+                    key={w.start}
+                    href={`/week?start=${w.start}`}
+                    aria-label={`${shortDate(w.start)} 주 ${m.label} ${v}건`}
+                    data-value={v}
+                    className="group relative mx-auto h-full w-full max-w-6 outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                  >
+                    {v > 0 && (
+                      <span
+                        className={`absolute inset-x-[15%] bottom-0 rounded-t transition-opacity group-hover:opacity-80 ${
+                          i === last ? "bg-blue-400 dark:bg-blue-400/70" : "bg-blue-600 dark:bg-blue-500"
+                        }`}
+                        style={{ height: `${h}%` }}
+                      />
+                    )}
+                    {v > 0 && (
+                      <span
+                        className="absolute left-1/2 -translate-x-1/2 text-[11px] font-semibold tabular-nums"
+                        style={{ bottom: `calc(${h}% + 2px)` }}
+                      >
+                        {v}
+                      </span>
+                    )}
+                    <Tip align={i < 2 ? "start" : i > last - 2 ? "end" : "center"}>
+                      <span className="font-semibold">{v}건</span> <span className="text-zinc-500">{m.label}</span>
+                      <br />
+                      <span className="text-zinc-500">
+                        {formatWeekRange(w.start)}
+                        {i === last && " (이번 주, 진행 중)"}
+                      </span>
+                    </Tip>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+      {/* 가로축: 주 시작일. 좁은 화면은 한 주 걸러 표시 */}
+      <div className="-mt-3 grid text-[11px] text-zinc-500 tabular-nums" style={cols}>
+        {weeks.map((w, i) => (
+          <span key={w.start} className={`text-center whitespace-nowrap ${(last - i) % 2 === 1 ? "invisible sm:visible" : ""}`}>
+            {i === last ? "이번 주" : shortDate(w.start)}
+          </span>
         ))}
       </div>
     </div>
