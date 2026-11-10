@@ -251,15 +251,15 @@ export function TrendChart({ weeks }: { weeks: TrendWeek[] }) {
       {TREND_METRICS.map((m) => {
         const total = weeks.reduce((a, w) => a + w[m.key], 0);
         return (
-          <div key={m.key} className="flex flex-col gap-1" data-metric={m.key}>
+          <div key={m.key} className="flex flex-col gap-1.5" data-metric={m.key}>
             <div className="flex items-baseline justify-between gap-3 text-sm">
               <span className="font-medium">{m.label}</span>
               <span className="text-xs text-zinc-500 tabular-nums">
                 {weeks.length}주 합계 <span data-total className="font-semibold text-zinc-900 dark:text-zinc-100">{total}</span>
               </span>
             </div>
-            {/* 위쪽 여백은 막대 위 숫자 자리 */}
-            <div className="grid h-16 border-b border-zinc-200 pt-4 dark:border-zinc-800" style={cols}>
+            {/* 위쪽 여백(20px)은 가장 높은 막대 위 숫자 자리 (숫자 11px + 간격 3px). 제목 줄과 겹치지 않게 넉넉히 둔다 */}
+            <div className="grid h-[4.75rem] border-b border-zinc-200 pt-5 dark:border-zinc-800" style={cols}>
               {weeks.map((w, i) => {
                 const v = w[m.key];
                 const h = (v / max) * 100;
@@ -281,8 +281,9 @@ export function TrendChart({ weeks }: { weeks: TrendWeek[] }) {
                     )}
                     {v > 0 && (
                       <span
-                        className="absolute left-1/2 -translate-x-1/2 text-[11px] font-semibold tabular-nums"
-                        style={{ bottom: `calc(${h}% + 2px)` }}
+                        data-label
+                        className="absolute left-1/2 -translate-x-1/2 text-[11px] leading-none font-semibold whitespace-nowrap tabular-nums"
+                        style={{ bottom: `calc(${h}% + 3px)` }}
                       >
                         {v}
                       </span>
