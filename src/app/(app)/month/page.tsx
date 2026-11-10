@@ -11,14 +11,14 @@ import { buildWeek } from "@/lib/week";
 
 // 한 달 달력. 재료는 주간 화면과 같은 getWeekData(달력 첫 일요일부터 4~6주)이고, 주마다 buildWeek로 날짜별로 묶는다.
 export default async function MonthPage(props: PageProps<"/month">) {
-  await requireLogin();
+  const { accountId } = await requireLogin();
   const today = todayInSeoul();
   const thisMonth = monthOf(today);
   const ym = parseMonth((await props.searchParams).m, thisMonth);
   if (ym === null) redirect("/month");
 
   const starts = monthWeeks(ym);
-  const data = await getWeekData(starts[0], starts.length * 7);
+  const data = await getWeekData(accountId, starts[0], starts.length * 7);
   const weeks = starts.map((start) => ({ start, days: buildWeek(start, data).days }));
   const summary = summarizeMonth(ym, weeks.flatMap((w) => w.days));
   const monthHref = (m: string) => (m === thisMonth ? "/month" : `/month?m=${m}`);

@@ -17,7 +17,7 @@ function weekLabel(start: string, thisWeek: string): string {
 
 // 기준 주(기본은 이번 주)와 앞뒤 한 주씩, 3주를 한 화면에 보여준다.
 export default async function WeekPage(props: PageProps<"/week">) {
-  await requireLogin();
+  const { accountId } = await requireLogin();
   const today = todayInSeoul();
   const thisWeek = weekStart(today);
 
@@ -33,7 +33,7 @@ export default async function WeekPage(props: PageProps<"/week">) {
 
   const first = addDays(start, -7);
   const weeks = [first, start, addDays(start, 7)].map((s) => ({ start: s, label: weekLabel(s, thisWeek) }));
-  const data = await getWeekData(first, 21);
+  const data = await getWeekData(accountId, first, 21);
 
   return (
     <section className="flex flex-col gap-6">

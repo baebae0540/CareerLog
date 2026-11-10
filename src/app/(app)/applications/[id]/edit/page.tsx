@@ -8,10 +8,10 @@ import { requireLogin } from "@/lib/session";
 import { updateApplication } from "../../actions";
 
 export default async function EditApplicationPage(props: PageProps<"/applications/[id]/edit">) {
-  await requireLogin();
+  const { accountId } = await requireLogin();
   const id = parseId((await props.params).id);
   if (!id) notFound();
-  const app = await getApplication(id);
+  const app = await getApplication(accountId, id);
   if (!app) notFound();
 
   return (

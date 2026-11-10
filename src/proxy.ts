@@ -5,7 +5,7 @@ import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth-token";
 // 실제 보호는 각 페이지·서버 액션의 requireLogin()이 맡는다.
 export async function proxy(request: NextRequest) {
   const token = request.cookies.get(SESSION_COOKIE)?.value;
-  const loggedIn = await verifySessionToken(token, process.env.SESSION_SECRET);
+  const loggedIn = (await verifySessionToken(token, process.env.SESSION_SECRET)) !== null;
   const isLoginPage = request.nextUrl.pathname === "/login";
 
   if (!loggedIn && !isLoginPage) {

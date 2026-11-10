@@ -12,7 +12,7 @@ import { buildFunnel, buildSourceStats, formatRate, parsePeriod, periodFrom, PER
 // 화면 구성: ① 핵심 숫자 4칸(비율 막대) → ② 단계별 전환 그래프 → ③ 지금 상태 막대 → ④ 지원 경로별 → ⑤ 주별 추이(기간 선택과 무관하게 최근 12주) → 집계 안내.
 // 단계는 순서가 있는 한 묶음이라 한 가지 색(파랑)으로 높이만 비교한다. 그래프는 src/components/stats-charts.tsx
 export default async function StatsPage(props: PageProps<"/stats">) {
-  await requireLogin();
+  const { accountId } = await requireLogin();
   const period = parsePeriod((await props.searchParams).period);
   if (period === null) redirect("/stats");
 
@@ -20,8 +20,8 @@ export default async function StatsPage(props: PageProps<"/stats">) {
   const from = periodFrom(period, today);
   const trendStart = trendFrom(weekStart(today));
   const [{ apps, changes, interested }, trendData] = await Promise.all([
-    getStatsData(from),
-    getWeekData(trendStart, TREND_WEEKS * 7),
+    getStatsData(accountId, from),
+    getWeekData(accountId, trendStart, TREND_WEEKS * 7),
   ]);
   const trend = buildWeeklyTrend(trendStart, TREND_WEEKS, trendData);
   const { stages, outcome } = buildFunnel(apps, changes);

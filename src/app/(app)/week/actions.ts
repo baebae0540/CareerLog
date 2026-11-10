@@ -4,6 +4,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { getDb } from "@/db";
 import { events } from "@/db/schema";
+import { inAccount } from "@/db/scope";
 import { moveAppliedDate, updateHistoryEntry } from "@/db/statements";
 import { isValidYmd, TIME_ZONE } from "@/lib/dates";
 import { requireLogin } from "@/lib/session";
@@ -22,7 +23,7 @@ export async function moveWeekItem(
   id: number,
   ymd: string,
 ): Promise<{ error?: string }> {
-  await requireLogin();
+  const { accountId } = await requireLogin();
   if (!isValidYmd(ymd)) return { error: "날짜가 올바르지 않습니다." };
   const db = getDb();
 
@@ -34,13 +35,13 @@ export async function moveWeekItem(
       .set({
         startsAt: sql`(${ymd}::date + (${events.startsAt} at time zone ${TIME_ZONE})::time) at time zone ${TIME_ZONE}`,
       })
-      .where(and(eq(events.id, id), eq(events.applicationId, applicationId)))
+      .where(and(eq(events.id, id), eq(events.applicationId, applicationId), inAccount(accountId, events.applicationId)))
       .returning({ id: events.id });
     moved = rows.length;
   } else if (type === "status") {
-    moved = (await db.execute(updateHistoryEntry(applicationId, id, { changedOn: ymd }))).rows.length;
+    moved = (await db.execute(updateHistoryEntry(accountId, applicationId, id, { changedOn: ymd }))).rows.length;
   } else if (type === "applied" && id === applicationId) {
-    moved = (await db.execute(moveAppliedDate(applicationId, ymd))).rows.length;
+    moved = (await db.execute(moveAppliedDate(accountId, applicationId, ymd))).rows.length;
   } else {
     return { error: "알 수 없는 항목입니다." };
   }

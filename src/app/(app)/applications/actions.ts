@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db";
 import { applicationImages, applications, events } from "@/db/schema";
+import { inAccount, ownApplication } from "@/db/scope";
 import {
   changeStatusWithHistory,
   deleteLatestHistoryEntry,
@@ -37,11 +38,11 @@ export async function changeStatus(
   _prev: StatusChangeFormState,
   formData: FormData,
 ): Promise<StatusChangeFormState> {
-  await requireLogin();
+  const { accountId } = await requireLogin();
   const parsed = parseStatusChangeForm(formData);
   if (!parsed.ok) return parsed.state;
 
-  const result = await getDb().execute(changeStatusWithHistory(id, parsed.data));
+  const result = await getDb().execute(changeStatusWithHistory(accountId, id, parsed.data));
   if (result.rows.length === 0) {
     return { message: "이미 같은 상태이거나 삭제된 지원 건입니다." };
   }
@@ -55,12 +56,12 @@ export async function createApplication(
   _prev: ApplicationFormState,
   formData: FormData,
 ): Promise<ApplicationFormState> {
-  await requireLogin();
+  const { accountId } = await requireLogin();
   const parsed = parseCreateForm(formData);
   if (!parsed.ok) return parsed.state;
 
   // 지원 건 저장 + 첫 상태 이력을 SQL 한 문장으로 (둘 중 하나만 저장되는 일 방지)
-  const result = await getDb().execute(insertApplicationWithHistory(parsed.data, todayInSeoul()));
+  const result = await getDb().execute(insertApplicationWithHistory(accountId, parsed.data, todayInSeoul()));
   const id = Number(result.rows[0].id);
 
   revalidatePath("/");
@@ -74,11 +75,11 @@ export async function updateHistory(
   _prev: StatusChangeFormState,
   formData: FormData,
 ): Promise<StatusChangeFormState> {
-  await requireLogin();
+  const { accountId } = await requireLogin();
   const parsed = parseHistoryEditForm(formData);
   if (!parsed.ok) return parsed.state;
 
-  const result = await getDb().execute(updateHistoryEntry(applicationId, historyId, parsed.data));
+  const result = await getDb().execute(updateHistoryEntry(accountId, applicationId, historyId, parsed.data));
   if (result.rows.length === 0) return { message: "이미 삭제된 이력입니다." };
 
   revalidatePath("/");
@@ -88,9 +89,9 @@ export async function updateHistory(
 
 /** 가장 최근 상태 변경 삭제 (= 이전 상태로 되돌리기) */
 export async function deleteHistory(applicationId: number, historyId: number) {
-  await requireLogin();
+  const { accountId } = await requireLogin();
   // 최근 변경이 아니거나 첫 등록 이력이면 SQL에서 아무것도 지우지 않는다
-  await getDb().execute(deleteLatestHistoryEntry(applicationId, historyId));
+  await getDb().execute(deleteLatestHistoryEntry(accountId, applicationId, historyId));
   revalidatePath("/");
   revalidatePath(`/applications/${applicationId}`);
 }
@@ -100,14 +101,14 @@ export async function updateApplication(
   _prev: ApplicationFormState,
   formData: FormData,
 ): Promise<ApplicationFormState> {
-  await requireLogin();
+  const { accountId } = await requireLogin();
   const parsed = parseUpdateForm(formData);
   if (!parsed.ok) return parsed.state;
 
   const updated = await getDb()
     .update(applications)
     .set(parsed.data)
-    .where(eq(applications.id, id))
+    .where(ownApplication(accountId, id))
     .returning({ id: applications.id });
   if (updated.length === 0) {
     return { message: "이미 삭제된 지원 건입니다." };
@@ -119,9 +120,9 @@ export async function updateApplication(
 }
 
 export async function deleteApplication(id: number) {
-  await requireLogin();
-  // 상태 이력·일정은 FK cascade로 함께 지워진다
-  await getDb().delete(applications).where(eq(applications.id, id));
+  const { accountId } = await requireLogin();
+  // 상태 이력·일정·사진은 FK cascade로 함께 지워진다
+  await getDb().delete(applications).where(ownApplication(accountId, id));
   revalidatePath("/");
   redirect("/");
 }
@@ -133,22 +134,22 @@ function revalidateApplication(applicationId: number) {
   revalidatePath(`/applications/${applicationId}`);
 }
 
-const eventOf = (applicationId: number, eventId: number) =>
-  and(eq(events.id, eventId), eq(events.applicationId, applicationId));
+const eventOf = (accountId: number, applicationId: number, eventId: number) =>
+  and(eq(events.id, eventId), eq(events.applicationId, applicationId), inAccount(accountId, events.applicationId));
 
 export async function createEvent(
   applicationId: number,
   _prev: EventFormState,
   formData: FormData,
 ): Promise<EventFormState> {
-  await requireLogin();
+  const { accountId } = await requireLogin();
   const parsed = parseEventForm(formData);
   if (!parsed.ok) return parsed.state;
 
   const [app] = await getDb()
     .select({ id: applications.id })
     .from(applications)
-    .where(eq(applications.id, applicationId));
+    .where(ownApplication(accountId, applicationId));
   if (!app) return { message: "이미 삭제된 지원 건입니다." };
 
   await getDb().insert(events).values({ applicationId, ...parsed.data });
@@ -162,14 +163,14 @@ export async function updateEvent(
   _prev: EventFormState,
   formData: FormData,
 ): Promise<EventFormState> {
-  await requireLogin();
+  const { accountId } = await requireLogin();
   const parsed = parseEventForm(formData);
   if (!parsed.ok) return parsed.state;
 
   const updated = await getDb()
     .update(events)
     .set(parsed.data)
-    .where(eventOf(applicationId, eventId))
+    .where(eventOf(accountId, applicationId, eventId))
     .returning({ id: events.id });
   if (updated.length === 0) return { message: "이미 삭제된 일정입니다." };
 
@@ -183,9 +184,9 @@ export async function updateEvent(
  * 상태 변경 SQL은 changeStatus와 같은 changeStatusWithHistory를 쓴다 (이력 기록은 한 곳).
  */
 export async function setEventDone(applicationId: number, eventId: number, done: boolean, formData: FormData) {
-  await requireLogin();
+  const { accountId } = await requireLogin();
   const db = getDb();
-  const markDone = db.update(events).set({ done }).where(eventOf(applicationId, eventId));
+  const markDone = db.update(events).set({ done }).where(eventOf(accountId, applicationId, eventId));
 
   if (done && formData.get("advanceStatus") === "1") {
     // 화면 값만 믿지 않고 서버에서 다시 확인: 면접 일정이고 지원 건이 면접 이전 단계일 때만
@@ -193,9 +194,9 @@ export async function setEventDone(applicationId: number, eventId: number, done:
       .select({ kind: events.kind, title: events.title, startsAt: events.startsAt, status: applications.status })
       .from(events)
       .innerJoin(applications, eq(applications.id, events.applicationId))
-      .where(eventOf(applicationId, eventId));
+      .where(eventOf(accountId, applicationId, eventId));
     if (row && row.kind === "interview" && isBeforeInterview(row.status)) {
-      const change = changeStatusWithHistory(applicationId, {
+      const change = changeStatusWithHistory(accountId, applicationId, {
         toStatus: "interview",
         changedOn: seoulParts(row.startsAt).ymd, // 일정 날짜
         note: `${row.title} 완료`,
@@ -212,8 +213,8 @@ export async function setEventDone(applicationId: number, eventId: number, done:
 }
 
 export async function deleteEvent(applicationId: number, eventId: number) {
-  await requireLogin();
-  await getDb().delete(events).where(eventOf(applicationId, eventId));
+  const { accountId } = await requireLogin();
+  await getDb().delete(events).where(eventOf(accountId, applicationId, eventId));
   revalidateApplication(applicationId);
 }
 
@@ -230,14 +231,14 @@ export async function uploadImages(
   _prev: ImageUploadState,
   formData: FormData,
 ): Promise<ImageUploadState> {
-  await requireLogin();
+  const { accountId } = await requireLogin();
   const files = formData.getAll("file").filter((f): f is File => f instanceof File && f.size > 0);
   if (files.length === 0) return { message: "올릴 사진을 골라 주세요." };
   const widths = formData.getAll("width");
   const heights = formData.getAll("height");
 
   const db = getDb();
-  const [app] = await db.select({ id: applications.id }).from(applications).where(eq(applications.id, applicationId));
+  const [app] = await db.select({ id: applications.id }).from(applications).where(ownApplication(accountId, applicationId));
   if (!app) return { message: "이미 삭제된 지원 건입니다." };
 
   const [{ total }] = await db
@@ -272,9 +273,15 @@ export async function uploadImages(
 }
 
 export async function deleteImage(applicationId: number, imageId: number) {
-  await requireLogin();
+  const { accountId } = await requireLogin();
   await getDb()
     .delete(applicationImages)
-    .where(and(eq(applicationImages.id, imageId), eq(applicationImages.applicationId, applicationId)));
+    .where(
+      and(
+        eq(applicationImages.id, imageId),
+        eq(applicationImages.applicationId, applicationId),
+        inAccount(accountId, applicationImages.applicationId),
+      ),
+    );
   revalidatePath(`/applications/${applicationId}`);
 }

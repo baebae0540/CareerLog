@@ -8,9 +8,9 @@ import { parseStatus, STATUS_LABEL, STATUS_ORDER } from "@/lib/labels";
 import { requireLogin } from "@/lib/session";
 
 export default async function ApplicationListPage(props: PageProps<"/">) {
-  await requireLogin();
+  const { accountId } = await requireLogin();
   const status = parseStatus((await props.searchParams).status);
-  const [items, counts] = await Promise.all([listApplications(status), countByStatus()]);
+  const [items, counts] = await Promise.all([listApplications(accountId, status), countByStatus(accountId)]);
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
 
   return (

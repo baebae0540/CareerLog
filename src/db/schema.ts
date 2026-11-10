@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
   customType,
@@ -9,6 +10,7 @@ import {
   serial,
   text,
   timestamp,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 // 상태 값. 화면 표시용 한국어 이름은 src/lib/labels.ts
@@ -22,6 +24,9 @@ export const applicationStatus = pgEnum("application_status", [
   "rejected", // 불합격
   "on_hold", // 보류 (내가 중단)
 ]);
+
+// 계정 종류. owner = 비밀번호로 들어오는 나, demo = '체험하기'로 만든 방문자 작업 공간
+export const accountKind = pgEnum("account_kind", ["owner", "demo"]);
 
 export const eventKind = pgEnum("event_kind", [
   "interview", // 면접
@@ -46,11 +51,28 @@ const timestamps = {
     .$onUpdate(() => new Date()),
 };
 
+/** 계정. 지원 건은 계정에 속하고, 하위 행(이력·일정·사진)은 지원 건을 거쳐 계정에 속한다. */
+export const accounts = pgTable(
+  "accounts",
+  {
+    id: serial("id").primaryKey(),
+    kind: accountKind("kind").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    // 체험 계정이 지워지는 시각 (owner는 null)
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+  },
+  // owner는 하나뿐
+  (t) => [uniqueIndex("accounts_one_owner_idx").on(t.kind).where(sql`${t.kind} = 'owner'`)],
+);
+
 /** 지원 건 */
 export const applications = pgTable(
   "applications",
   {
     id: serial("id").primaryKey(),
+    accountId: integer("account_id")
+      .notNull()
+      .references(() => accounts.id, { onDelete: "cascade" }),
     company: text("company").notNull(),
     position: text("position").notNull(),
     jobUrl: text("job_url"),
@@ -60,7 +82,7 @@ export const applications = pgTable(
     memo: text("memo"),
     ...timestamps,
   },
-  (t) => [index("applications_applied_at_idx").on(t.appliedAt)],
+  (t) => [index("applications_applied_at_idx").on(t.appliedAt), index("applications_account_idx").on(t.accountId)],
 );
 
 /** 상태 변경 이력. changeStatus 액션에서만 기록한다. */
@@ -129,5 +151,6 @@ export const applicationImages = pgTable(
 export type Application = typeof applications.$inferSelect;
 export type StatusChange = typeof statusChanges.$inferSelect;
 export type Event = typeof events.$inferSelect;
+export type AccountKind = (typeof accountKind.enumValues)[number];
 export type ApplicationStatus = (typeof applicationStatus.enumValues)[number];
 export type EventKind = (typeof eventKind.enumValues)[number];

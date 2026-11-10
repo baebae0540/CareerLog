@@ -27,15 +27,15 @@ import {
 } from "../actions";
 
 export default async function ApplicationDetailPage(props: PageProps<"/applications/[id]">) {
-  await requireLogin();
+  const { accountId } = await requireLogin();
   const id = parseId((await props.params).id);
   if (!id) notFound();
 
   const [app, history, events, images] = await Promise.all([
-    getApplication(id),
-    getStatusHistory(id),
-    getEvents(id),
-    listImages(id),
+    getApplication(accountId, id),
+    getStatusHistory(accountId, id),
+    getEvents(accountId, id),
+    listImages(accountId, id),
   ]);
   if (!app) notFound();
   const today = todayInSeoul();

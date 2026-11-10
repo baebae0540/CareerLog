@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
-import { isLoggedIn } from "@/lib/session";
+import { getSession } from "@/lib/session";
 import { LoginForm } from "./login-form";
 
 export default async function LoginPage() {
-  if (await isLoggedIn()) redirect("/");
+  if (await getSession()) redirect("/");
 
   return (
     <main className="flex flex-1 items-center justify-center px-4">
