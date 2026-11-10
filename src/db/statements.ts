@@ -5,6 +5,7 @@
 // (다른 계정의 id를 보내면 0행 = 기존의 "대상 없음"과 같다).
 import { sql } from "drizzle-orm";
 import type { ApplicationCreateInput, HistoryEditInput, StatusChangeInput } from "@/lib/application-input";
+import type { DemoSeed } from "@/lib/demo-seed";
 
 /**
  * 지원 건 저장 + 첫 상태 이력 기록. 결과 행: { id }
@@ -155,4 +156,56 @@ export function moveAppliedDate(accountId: number, applicationId: number, ymd: s
     from app
     where a.id = app.id
     returning a.id`;
+}
+
+/**
+ * 체험 계정 만들기 + 예시 데이터. 결과 행: { id } (새 계정 id)
+ * 데이터는 jsonb 파라미터 3개로 넘기고 jsonb_to_recordset으로 펼친다.
+ * 지원 건 id를 nextval로 먼저 정해 두고(materialized), 이력·일정은 key로 그 id에 잇는다
+ * (insert ... select의 returning으로는 원래 행의 key를 돌려받을 수 없어서).
+ */
+export function insertDemoAccount(seed: DemoSeed, expiresAt: Date) {
+  return sql`
+    with acc as (
+      insert into accounts (kind, expires_at) values ('demo', ${expiresAt.toISOString()}::timestamptz)
+      returning id
+    ),
+    src as materialized (
+      select nextval(pg_get_serial_sequence('applications', 'id'))::int as id, r.*
+      from jsonb_to_recordset(${JSON.stringify(seed.applications)}::jsonb) as r(
+        key text, company text, position text, source text, memo text,
+        status application_status, "appliedAt" date, "createdAt" timestamptz, "updatedAt" timestamptz
+      )
+    ),
+    apps as (
+      insert into applications (id, account_id, company, position, source, memo, status, applied_at, created_at, updated_at)
+      select src.id, acc.id, src.company, src.position, src.source, src.memo, src.status,
+             src."appliedAt", src."createdAt", src."updatedAt"
+      from src cross join acc
+      returning id
+    ),
+    hist as (
+      insert into status_changes (application_id, from_status, to_status, note, changed_on, changed_at)
+      select src.id, c."fromStatus", c."toStatus", c.note, c."changedOn", c."changedAt"
+      from jsonb_to_recordset(${JSON.stringify(seed.changes)}::jsonb) as c(
+        key text, "fromStatus" application_status, "toStatus" application_status,
+        note text, "changedOn" date, "changedAt" timestamptz
+      )
+      join src on src.key = c.key
+      where exists (select 1 from apps) -- 지원 건이 먼저 들어가야 FK가 맞는다
+      returning id
+    ),
+    evts as (
+      insert into events (application_id, kind, title, starts_at, all_day, done)
+      select src.id, e.kind, e.title, e."startsAt", e."allDay", e.done
+      from jsonb_to_recordset(${JSON.stringify(seed.events)}::jsonb) as e(
+        key text, kind event_kind, title text, "startsAt" timestamptz, "allDay" boolean, done boolean
+      )
+      join src on src.key = e.key
+      where exists (select 1 from apps)
+      returning id
+    )
+    select acc.id, (select count(*) from apps)::int as apps, (select count(*) from hist)::int as changes,
+           (select count(*) from evts)::int as events
+    from acc`;
 }

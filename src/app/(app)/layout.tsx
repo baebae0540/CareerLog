@@ -1,11 +1,18 @@
+import { eq } from "drizzle-orm";
 import Link from "next/link";
 import { NavLinks } from "@/components/nav-links";
+import { getDb } from "@/db";
+import { accounts } from "@/db/schema";
+import { formatDateTime } from "@/lib/dates";
 import { requireLogin } from "@/lib/session";
 import { logout } from "./actions";
 
 // 로그인한 화면 공통 틀. 페이지마다 requireLogin()을 따로 호출하지만 여기서도 한 번 막는다.
 export default async function AppLayout({ children }: LayoutProps<"/">) {
-  await requireLogin();
+  const { accountId, isDemo } = await requireLogin();
+  const demoExpiresAt = isDemo
+    ? (await getDb().select({ at: accounts.expiresAt }).from(accounts).where(eq(accounts.id, accountId)))[0]?.at
+    : null;
 
   return (
     <div className="flex flex-1 flex-col">
@@ -24,6 +31,14 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
           </form>
         </div>
       </header>
+      {isDemo && (
+        <div data-demo-banner className="border-b border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200">
+          <p className="mx-auto w-full max-w-5xl px-4 py-2 text-xs sm:text-sm">
+            체험 계정입니다. 예시 데이터를 자유롭게 바꿔 보세요.
+            {demoExpiresAt && <> 데이터는 {formatDateTime(demoExpiresAt)}에 삭제됩니다.</>}
+          </p>
+        </div>
+      )}
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">{children}</main>
     </div>
   );

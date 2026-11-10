@@ -22,6 +22,7 @@ import {
   type StatusChangeFormState,
 } from "@/lib/application-input";
 import { seoulParts, todayInSeoul } from "@/lib/dates";
+import { DEMO_MAX_APPLICATIONS, DEMO_MAX_EVENTS, DEMO_MAX_IMAGE_BYTES, DEMO_MAX_IMAGES } from "@/lib/demo-seed";
 import { parseEventForm, type EventFormState } from "@/lib/event-input";
 import {
   detectImageType,
@@ -56,9 +57,14 @@ export async function createApplication(
   _prev: ApplicationFormState,
   formData: FormData,
 ): Promise<ApplicationFormState> {
-  const { accountId } = await requireLogin();
+  const { accountId, isDemo } = await requireLogin();
   const parsed = parseCreateForm(formData);
   if (!parsed.ok) return parsed.state;
+
+  if (isDemo) {
+    const [{ total }] = await getDb().select({ total: count() }).from(applications).where(ownApplication(accountId));
+    if (total >= DEMO_MAX_APPLICATIONS) return { message: `체험 계정은 지원 건을 ${DEMO_MAX_APPLICATIONS}개까지 만들 수 있습니다.` };
+  }
 
   // 지원 건 저장 + 첫 상태 이력을 SQL 한 문장으로 (둘 중 하나만 저장되는 일 방지)
   const result = await getDb().execute(insertApplicationWithHistory(accountId, parsed.data, todayInSeoul()));
@@ -142,9 +148,14 @@ export async function createEvent(
   _prev: EventFormState,
   formData: FormData,
 ): Promise<EventFormState> {
-  const { accountId } = await requireLogin();
+  const { accountId, isDemo } = await requireLogin();
   const parsed = parseEventForm(formData);
   if (!parsed.ok) return parsed.state;
+
+  if (isDemo) {
+    const [{ total }] = await getDb().select({ total: count() }).from(events).where(inAccount(accountId, events.applicationId));
+    if (total >= DEMO_MAX_EVENTS) return { message: `체험 계정은 일정을 ${DEMO_MAX_EVENTS}개까지 만들 수 있습니다.` };
+  }
 
   const [app] = await getDb()
     .select({ id: applications.id })
@@ -231,7 +242,7 @@ export async function uploadImages(
   _prev: ImageUploadState,
   formData: FormData,
 ): Promise<ImageUploadState> {
-  const { accountId } = await requireLogin();
+  const { accountId, isDemo } = await requireLogin();
   const files = formData.getAll("file").filter((f): f is File => f instanceof File && f.size > 0);
   if (files.length === 0) return { message: "올릴 사진을 골라 주세요." };
   const widths = formData.getAll("width");
@@ -248,11 +259,22 @@ export async function uploadImages(
   if (total + files.length > MAX_IMAGES_PER_APPLICATION) {
     return { message: `사진은 지원 건마다 ${MAX_IMAGES_PER_APPLICATION}장까지 올릴 수 있습니다 (지금 ${total}장).` };
   }
+  // 체험 계정: 계정 전체 장수와 장당 크기를 더 작게 (공개 서비스의 DB 용량 보호)
+  if (isDemo) {
+    const [{ all }] = await db
+      .select({ all: count() })
+      .from(applicationImages)
+      .where(inAccount(accountId, applicationImages.applicationId));
+    if (all + files.length > DEMO_MAX_IMAGES) {
+      return { message: `체험 계정은 사진을 ${DEMO_MAX_IMAGES}장까지 올릴 수 있습니다 (지금 ${all}장).` };
+    }
+  }
+  const maxBytes = isDemo ? DEMO_MAX_IMAGE_BYTES : MAX_IMAGE_BYTES;
 
   const rows = [];
   for (const [i, file] of files.entries()) {
-    if (file.size > MAX_IMAGE_BYTES) {
-      return { message: `사진이 너무 큽니다: ${file.name} (${formatBytes(file.size)}, 최대 ${formatBytes(MAX_IMAGE_BYTES)})` };
+    if (file.size > maxBytes) {
+      return { message: `사진이 너무 큽니다: ${file.name} (${formatBytes(file.size)}, 최대 ${formatBytes(maxBytes)})` };
     }
     const data = Buffer.from(await file.arrayBuffer());
     const mime = detectImageType(data);
