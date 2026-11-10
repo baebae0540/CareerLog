@@ -59,7 +59,6 @@ src/
   lib/stats.ts          통계 퍼널·기간·지원 경로별 계산 (순수 함수, 테스트 있음)
   lib/month.ts          월간 달력 주 범위·월 이동·월 요약 (순수 함수, 테스트 있음)
   lib/trend.ts          통계 주별 추이 (WeekData를 주 단위로 집계, 순수 함수, 테스트 있음)
-  lib/csv.ts            지원 목록 CSV (BOM·CRLF·따옴표·수식 막기, 테스트 있음)
   lib/nav.ts            헤더 메뉴 목록, 주소 → 현재 메뉴 (테스트 있음)
   lib/image-input.ts    사진 형식 판별(시그니처)·축소 크기·한도 (순수 함수, 테스트 있음)
   components/           폼·배지·삭제 버튼, 공통 클래스(ui.ts)
@@ -79,7 +78,6 @@ src/
     page.tsx            지원 목록 (/?status=로 필터)
     applications/       등록(new)·상세([id])·수정([id]/edit), actions.ts
       [id]/images/[imageId]/route.ts  사진 내려주기 (로그인 확인, 401)
-      export/route.ts   지원 목록 CSV 내려받기 (/applications/export?status=, 로그인 확인)
     week/               주간 캘린더 (/week?start=기준 주 일요일), actions.ts(moveWeekItem)
     month/              월간 달력 (/month?m=YYYY-MM)
     stats/              통계 (/stats?period=all|90d|30d), 단계별 퍼널·전환율
@@ -189,6 +187,8 @@ dev 서버가 남아 있으면(포트 3000 사용 중): 맥 `lsof -ti tcp:3000 |
   - 칸마다 최대 3개, 넘치면 "+N개 더". 날짜·"+N개 더"를 누르면 그 주 `/week?start=`, 항목을 누르면 상세. 잘못된 `?m=`은 `/month`로.
   - 좁은 화면(md 미만)은 달력 대신 항목 있는 날만 세로 목록.
   - 실제 DB + headless Chrome으로 요약·날짜별 항목 수를 SQL과 대조, 경계(토 23:30·일 0시·다음 달), 6주 달, 링크, 390px 등 19개 확인. 테스트 91개.
+- 2026-11-10: **CSV 내보내기 제거** (개발자 요청, 활용 계획 없음). 라우트·`lib/csv.ts`·지원 목록 버튼 삭제. `parseStatus`는 목록 필터가 계속 쓴다. 테스트 85개.
+  - 라우트를 지우면 `.next/dev/types`에 옛 경로가 남아 typecheck가 실패한다 → 그 폴더를 지우면 다시 만들어진다.
 
 ## 다음 할 일
 
@@ -205,7 +205,6 @@ dev 서버가 남아 있으면(포트 3000 사용 중): 맥 `lsof -ti tcp:3000 |
 - [x] 마이그레이션 0003 적용 (개발자, push 전에)
 - [x] 사진 확인 (개발자): 배포 주소에서 사진 올리기·크게 보기·삭제, 폰에서 사진 고르기
 - [x] CSV 내보내기 — 코드 완료
-- [ ] CSV 확인 (개발자): 배포 주소에서 내려받아 엑셀에서 한글·줄바꿈 메모가 제대로 보이는지 (맥이라 보류, 윈도우에서 확인)
 - [x] 지원 경로별 성과 — 코드 완료
 - [ ] 지원 경로별 확인 (개발자): 배포 주소에서 /stats 맨 아래 카드
 - [x] 주별 추이 — 코드 완료
