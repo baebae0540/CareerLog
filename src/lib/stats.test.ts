@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildFunnel, formatRate, parsePeriod, periodFrom } from "./stats";
+import { buildFunnel, buildSourceStats, formatRate, parsePeriod, periodFrom } from "./stats";
 
 const counts = (f: ReturnType<typeof buildFunnel>) => f.stages.map((s) => s.count);
 
@@ -97,4 +97,76 @@ describe("기간", () => {
 it("formatRate", () => {
   expect(formatRate(1 / 3)).toBe("33%");
   expect(formatRate(null)).toBe("–");
+});
+
+describe("buildSourceStats", () => {
+  it("경로별로 도달한 가장 높은 단계까지 센다 (건너뛴 단계 포함)", () => {
+    const rows = buildSourceStats(
+      [
+        { id: 1, status: "rejected", source: "원티드" },
+        { id: 2, status: "offer", source: "원티드" },
+        { id: 3, status: "applied", source: "지인 추천" },
+      ],
+      [
+        { applicationId: 1, toStatus: "interview" },
+        { applicationId: 1, toStatus: "rejected" },
+      ],
+    );
+    expect(rows).toEqual([
+      { source: "원티드", total: 2, documentPassed: 2, interview: 2, offer: 1 },
+      { source: "지인 추천", total: 1, documentPassed: 0, interview: 0, offer: 0 },
+    ]);
+  });
+
+  it("공백·대소문자만 맞춰 묶고, 이름은 처음 나온 표기를 쓴다", () => {
+    const rows = buildSourceStats(
+      [
+        { id: 1, status: "applied", source: " Wanted " },
+        { id: 2, status: "applied", source: "wanted" },
+        { id: 3, status: "applied", source: "지인  추천" },
+        { id: 4, status: "applied", source: "지인 추천" },
+        { id: 5, status: "applied", source: "원티드" },
+      ],
+      [],
+    );
+    // 같은 건수면 한국어 정렬 (한글이 영문보다 앞)
+    expect(rows.map((r) => [r.source, r.total])).toEqual([
+      ["지인 추천", 2],
+      ["Wanted", 2],
+      ["원티드", 1],
+    ]);
+  });
+
+  it("비어 있는 경로는 미입력(null)으로 묶어 맨 뒤에 둔다", () => {
+    const rows = buildSourceStats(
+      [
+        { id: 1, status: "applied", source: null },
+        { id: 2, status: "applied", source: "  " },
+        { id: 3, status: "applied" },
+        { id: 4, status: "applied", source: "사람인" },
+      ],
+      [],
+    );
+    expect(rows.map((r) => [r.source, r.total])).toEqual([
+      ["사람인", 1],
+      [null, 3],
+    ]);
+  });
+
+  it("지원 많은 순, 같으면 이름순", () => {
+    const rows = buildSourceStats(
+      [
+        { id: 1, status: "applied", source: "잡코리아" },
+        { id: 2, status: "applied", source: "사람인" },
+        { id: 3, status: "applied", source: "회사 홈페이지" },
+        { id: 4, status: "applied", source: "회사 홈페이지" },
+      ],
+      [],
+    );
+    expect(rows.map((r) => r.source)).toEqual(["회사 홈페이지", "사람인", "잡코리아"]);
+  });
+
+  it("지원 건이 없으면 빈 목록", () => {
+    expect(buildSourceStats([], [])).toEqual([]);
+  });
 });

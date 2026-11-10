@@ -1,6 +1,6 @@
 // 통계 화면 그래프. 라이브러리 없이 HTML·Tailwind·인라인 SVG로 그린다 (서버 컴포넌트, JS 없음).
 // 규칙: 막대는 24px 이하·위쪽만 둥글게, 숫자 글자는 데이터 색을 입지 않는다, 마우스·키보드 포커스로 자세한 값을 본다.
-import type { FunnelRow } from "@/lib/stats";
+import type { FunnelRow, SourceRow } from "@/lib/stats";
 import { formatRate } from "@/lib/stats";
 import { STATUS_LABEL } from "@/lib/labels";
 
@@ -165,6 +165,65 @@ export function StatusBar({ parts }: { parts: StatusPart[] }) {
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+const SOURCE_RATES = [
+  { key: "documentPassed", label: "서류 통과" },
+  { key: "interview", label: "면접 진출" },
+  { key: "offer", label: "합격" },
+] as const;
+
+/**
+ * 지원 경로별 성과. 넓은 화면은 표(경로·지원·비율 3칸), 좁은 화면은 경로마다 카드처럼 쌓는다.
+ * 비율은 그 경로의 지원 대비, 막대는 Meter와 같은 파랑.
+ */
+export function SourceTable({ rows }: { rows: SourceRow[] }) {
+  const grid = "sm:grid sm:grid-cols-[minmax(0,1.4fr)_3.5rem_repeat(3,minmax(0,1fr))] sm:items-center sm:gap-x-4";
+  return (
+    <div role="table" aria-label="지원 경로별 성과" className="text-sm">
+      <div role="row" className={`hidden pb-2 text-xs text-zinc-500 ${grid}`}>
+        <span role="columnheader">경로</span>
+        <span role="columnheader" className="text-right">지원</span>
+        {SOURCE_RATES.map((r) => (
+          <span role="columnheader" key={r.key}>
+            {r.label}
+          </span>
+        ))}
+      </div>
+      <div className="divide-y divide-zinc-100 border-t border-zinc-100 dark:divide-zinc-800 dark:border-zinc-800">
+        {rows.map((row) => (
+          <div role="row" key={row.source ?? ""} className={`flex flex-col gap-2 py-3 ${grid}`}>
+            <div className="flex items-baseline justify-between gap-3 sm:contents">
+              <span role="cell" className={`min-w-0 truncate font-medium ${row.source === null ? "text-zinc-500" : ""}`} title={row.source ?? undefined}>
+                {row.source ?? "미입력"}
+              </span>
+              <span role="cell" className="shrink-0 text-right tabular-nums">
+                {row.total}건
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-3 sm:contents">
+              {SOURCE_RATES.map((r) => {
+                const n = row[r.key];
+                const rate = row.total === 0 ? null : n / row.total;
+                return (
+                  <div role="cell" key={r.key} className="flex min-w-0 flex-col gap-1">
+                    <span className="flex items-baseline justify-between gap-1 text-xs tabular-nums">
+                      <span className="text-zinc-500 sm:hidden">{r.label}</span>
+                      <span>
+                        <span className="font-semibold">{formatRate(rate)}</span>
+                        <span className="text-zinc-500"> {n}/{row.total}</span>
+                      </span>
+                    </span>
+                    <Meter rate={rate} label={`${row.source ?? "미입력"} ${r.label} ${formatRate(rate)}`} />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

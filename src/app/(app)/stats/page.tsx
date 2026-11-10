@@ -1,14 +1,14 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getStatsData } from "@/db/queries";
-import { FunnelChart, Meter, StatusBar, type StatusPart } from "@/components/stats-charts";
+import { FunnelChart, Meter, SourceTable, StatusBar, type StatusPart } from "@/components/stats-charts";
 import { cardClass } from "@/components/ui";
 import { formatYmd, todayInSeoul } from "@/lib/dates";
 import { STATUS_LABEL } from "@/lib/labels";
 import { requireLogin } from "@/lib/session";
-import { buildFunnel, formatRate, parsePeriod, periodFrom, PERIOD_LABEL, STATS_PERIODS } from "@/lib/stats";
+import { buildFunnel, buildSourceStats, formatRate, parsePeriod, periodFrom, PERIOD_LABEL, STATS_PERIODS } from "@/lib/stats";
 
-// 화면 구성: ① 핵심 숫자 4칸(비율 막대) → ② 단계별 전환 그래프 → ③ 지금 상태 막대 → 집계 안내.
+// 화면 구성: ① 핵심 숫자 4칸(비율 막대) → ② 단계별 전환 그래프 → ③ 지금 상태 막대 → ④ 지원 경로별 → 집계 안내.
 // 단계는 순서가 있는 한 묶음이라 한 가지 색(파랑)으로 높이만 비교한다. 그래프는 src/components/stats-charts.tsx
 export default async function StatsPage(props: PageProps<"/stats">) {
   await requireLogin();
@@ -19,6 +19,7 @@ export default async function StatsPage(props: PageProps<"/stats">) {
   const from = periodFrom(period, today);
   const { apps, changes, interested } = await getStatsData(from);
   const { stages, outcome } = buildFunnel(apps, changes);
+  const sources = buildSourceStats(apps, changes);
   const total = stages[0].count;
   const [, docPassed, interview, , offer] = stages;
 
@@ -108,6 +109,18 @@ export default async function StatsPage(props: PageProps<"/stats">) {
           <div className={`${cardClass} flex flex-col gap-4 p-4 sm:p-6`}>
             <h2 className="font-semibold">지금 상태</h2>
             <StatusBar parts={parts} />
+          </div>
+
+          {/* ④ 지원 경로별: 경로마다 지원 대비 비율 */}
+          <div className={`${cardClass} flex flex-col gap-3 p-4 sm:p-6`}>
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+              <h2 className="font-semibold">지원 경로별</h2>
+              <span className="text-xs text-zinc-500">% = 그 경로로 지원한 건 대비</span>
+            </div>
+            <SourceTable rows={sources} />
+            <p className="text-xs text-zinc-500">
+              경로 이름은 띄어쓰기·대소문자만 맞춰 묶습니다. 지원이 적은 경로는 한두 건으로 비율이 크게 달라집니다.
+            </p>
           </div>
         </>
       )}

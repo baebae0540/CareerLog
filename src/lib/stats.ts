@@ -22,7 +22,7 @@ export function periodFrom(period: StatsPeriod, today: string): string | null {
   return null;
 }
 
-export type FunnelApp = { id: number; status: ApplicationStatus };
+export type FunnelApp = { id: number; status: ApplicationStatus; source?: string | null };
 export type FunnelChange = { applicationId: number; toStatus: ApplicationStatus };
 
 export type FunnelRow = {
@@ -45,20 +45,24 @@ function stageIndex(status: ApplicationStatus): number {
 }
 
 /**
- * 지원 건마다 도달한 가장 높은 단계(이력의 to_status와 현재 상태 중)를 구해 단계별로 센다.
- * 단계를 건너뛰어도 앞 단계는 지난 것으로 본다. 불합격·보류가 돼도 도달한 단계는 그대로 센다.
+ * 지원 건마다 도달한 가장 높은 단계의 순번(이력의 to_status와 현재 상태 중). 0 = 지원.
+ * 단계를 건너뛰어도 앞 단계는 지난 것으로 본다. 불합격·보류가 돼도 도달한 단계는 그대로 둔다.
+ * 지원일이 있는 건은 적어도 '지원' 단계에 온 것이다 (지원일을 정하고 바로 불합격·보류로 등록한 경우 포함).
  */
-export function buildFunnel(apps: FunnelApp[], changes: FunnelChange[]): Funnel {
+function highestStages(apps: FunnelApp[], changes: FunnelChange[]): Map<number, number> {
   const highest = new Map<number, number>();
-  for (const app of apps) highest.set(app.id, stageIndex(app.status));
+  for (const app of apps) highest.set(app.id, Math.max(stageIndex(app.status), 0));
   for (const c of changes) {
     const current = highest.get(c.applicationId);
     if (current === undefined) continue; // 대상이 아닌 지원 건의 이력
     highest.set(c.applicationId, Math.max(current, stageIndex(c.toStatus)));
   }
+  return highest;
+}
 
-  // 지원일이 있는 건은 적어도 '지원' 단계에 온 것이다 (지원일을 정하고 바로 불합격·보류로 등록한 경우 포함)
-  const reached = [...highest.values()].map((i) => Math.max(i, 0));
+/** 지원 건마다 도달한 가장 높은 단계를 구해 단계별로 센다 */
+export function buildFunnel(apps: FunnelApp[], changes: FunnelChange[]): Funnel {
+  const reached = [...highestStages(apps, changes).values()];
   const counts = FUNNEL_STAGES.map((_, k) => reached.filter((i) => i >= k).length);
   const first = counts[0];
 
@@ -77,6 +81,50 @@ export function buildFunnel(apps: FunnelApp[], changes: FunnelChange[]): Funnel 
     else if (stageIndex(app.status) >= 0) outcome.active++;
   }
   return { stages, outcome };
+}
+
+export type SourceRow = {
+  /** 화면에 보일 경로 이름. 비어 있으면 null (= 미입력) */
+  source: string | null;
+  total: number;
+  documentPassed: number;
+  interview: number;
+  offer: number;
+};
+
+/** 경로 묶음 열쇠: 앞뒤·중복 공백을 정리하고 대소문자를 무시한다. 빈 값은 "" */
+function sourceKey(source: string | null | undefined): string {
+  return (source ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+/**
+ * 지원 경로별 성과. 퍼널과 같은 '도달한 가장 높은 단계' 기준으로 서류 통과·면접·합격까지 간 건수를 센다.
+ * 경로는 공백·대소문자만 맞춰 묶는다 (다른 표기는 합치지 않는다). 이름은 apps에서 처음 나온 표기를 쓴다 (조회는 id 순).
+ * 순서: 지원 많은 순 → 이름순, 미입력은 맨 뒤.
+ */
+export function buildSourceStats(apps: FunnelApp[], changes: FunnelChange[]): SourceRow[] {
+  const highest = highestStages(apps, changes);
+  const rows = new Map<string, SourceRow>();
+  const at = (stage: FunnelStage) => FUNNEL_STAGES.indexOf(stage);
+
+  for (const app of apps) {
+    const key = sourceKey(app.source);
+    let row = rows.get(key);
+    if (!row) {
+      row = { source: key ? app.source!.trim().replace(/\s+/g, " ") : null, total: 0, documentPassed: 0, interview: 0, offer: 0 };
+      rows.set(key, row);
+    }
+    const reached = highest.get(app.id) ?? 0;
+    row.total++;
+    if (reached >= at("document_passed")) row.documentPassed++;
+    if (reached >= at("interview")) row.interview++;
+    if (reached >= at("offer")) row.offer++;
+  }
+
+  return [...rows.values()].sort((a, b) => {
+    if ((a.source === null) !== (b.source === null)) return a.source === null ? 1 : -1;
+    return b.total - a.total || (a.source ?? "").localeCompare(b.source ?? "", "ko");
+  });
 }
 
 /** 비율 표시: 0.333 → "33%", null → "–" */

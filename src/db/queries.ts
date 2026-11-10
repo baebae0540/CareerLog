@@ -110,7 +110,11 @@ export async function getStatsData(
     from ? gte(applications.appliedAt, from) : undefined,
   );
   const [apps, changes, [interested]] = await Promise.all([
-    db.select({ id: applications.id, status: applications.status }).from(applications).where(target),
+    db
+      .select({ id: applications.id, status: applications.status, source: applications.source })
+      .from(applications)
+      .where(target)
+      .orderBy(asc(applications.id)), // 경로 이름은 먼저 등록한 표기를 쓴다 (buildSourceStats)
     db
       .select({ applicationId: statusChanges.applicationId, toStatus: statusChanges.toStatus })
       .from(statusChanges)
