@@ -57,6 +57,7 @@ src/
   lib/labels.ts         상태·일정 종류의 한국어 이름과 색
   lib/week.ts           주간 화면 묶기·요약 숫자 (순수 함수, 테스트 있음)
   lib/stats.ts          통계 퍼널·기간 계산 (순수 함수, 테스트 있음)
+  lib/nav.ts            헤더 메뉴 목록, 주소 → 현재 메뉴 (테스트 있음)
   lib/image-input.ts    사진 형식 판별(시그니처)·축소 크기·한도 (순수 함수, 테스트 있음)
   components/           폼·배지·삭제 버튼, 공통 클래스(ui.ts)
     field.tsx           Field(라벨·입력·안내 줄), FormSection — 새 폼은 이것으로 만든다
@@ -68,6 +69,7 @@ src/
     stats-charts.tsx    통계 그래프 (퍼널 세로 막대+흐름 띠, 상태 나눔 막대, 비율 막대). 라이브러리 없이 HTML·SVG, 말풍선은 CSS
     image-gallery.tsx   지원 건 사진 (클라이언트). 올리기(버튼·끌어 놓기·붙여넣기, 브라우저에서 축소)·썸네일·<dialog> 크게 보기·삭제
     week-calendar.tsx   주간 캘린더 (클라이언트). @dnd-kit/core로 드래그해 날짜 이동, useOptimistic으로 먼저 반영
+    nav-links.tsx       헤더 메뉴 (클라이언트). 지금 화면은 굵은 글자 + 아래 막대 (lib/nav.ts의 activeNav)
   app/login/            로그인 화면·액션
   app/(app)/            로그인 후 화면 (layout에서 requireLogin)
     page.tsx            지원 목록 (/?status=로 필터)
@@ -157,6 +159,10 @@ dev 서버가 남아 있으면(포트 3000 사용 중): 맥 `lsof -ti tcp:3000 |
   - 올리기: 사진 추가 버튼·끌어 놓기·붙여넣기(입력 칸 밖에서 ⌘/Ctrl+V). 긴 변 2000px 초과나 1.5MB 초과면 브라우저에서 JPEG(0.85)로 줄인다. GIF는 원본 유지.
   - 서버에서 크기·시그니처(png/jpeg/webp/gif)를 다시 확인한다. 사진 주소는 로그인 없으면 401, `Cache-Control: private, immutable`.
   - 썸네일을 누르면 크게 보기(이전·다음·←/→, Esc·바깥 클릭 닫기, 원본 새 탭, 삭제). 테스트 65개.
+- 2026-11-10: 디자인 개선 (개발자 요청). 스키마 변경 없음.
+  - 헤더: 지금 보고 있는 메뉴(지원 목록·주간·통계)를 굵은 글자 + 아래 막대로 표시, `aria-current="page"`. 등록·상세·수정은 '지원 목록'.
+  - 주간 드래그: 들어 올린 카드는 커지며 기울고 파란 테두리, 원래 자리는 점선 빈칸, 모든 칸 테두리가 점선, 올라간 칸은 파란 배경 + "여기로 이동"(원래 칸은 강조 없음), 놓은 항목은 1.2초 파란 테두리. 폰은 들어 올릴 때 짧은 진동(안드로이드).
+  - headless Chrome으로 22개 항목 확인. 드래그 도중 `page.screenshot`은 화면 크기를 잠깐 바꿔 놓을 칸이 다시 계산된다 → `captureBeyondViewport: false`로 찍는다. 테스트 68개.
 
 ## 다음 할 일
 

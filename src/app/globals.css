@@ -75,3 +75,43 @@ body {
     background: var(--color-zinc-800);
   }
 }
+
+/* 주간 캘린더 드래그: 들어 올릴 때 커지며 기울고, 놓은 항목은 파란 테두리가 번졌다 사라진다 */
+@keyframes drag-lift {
+  from {
+    scale: 1;
+    rotate: 0deg;
+  }
+  to {
+    scale: 1.05;
+    rotate: 2deg;
+  }
+}
+.drag-lift {
+  animation: drag-lift 150ms ease-out both;
+}
+@keyframes just-moved {
+  0%,
+  40% {
+    box-shadow: 0 0 0 2px var(--color-blue-500);
+  }
+  100% {
+    box-shadow: 0 0 0 10px transparent;
+  }
+}
+.just-moved {
+  animation: just-moved 1.2s ease-out;
+}
+body.is-dragging,
+body.is-dragging * {
+  cursor: grabbing !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .drag-lift {
+    animation-duration: 1ms;
+  }
+  .just-moved {
+    animation-duration: 2.4s;
+    animation-timing-function: steps(1, end);
+  }
+}

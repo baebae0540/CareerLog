@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { NavLinks } from "@/components/nav-links";
 import { requireLogin } from "@/lib/session";
 import { logout } from "./actions";
 
@@ -14,17 +15,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
             <Link href="/" className="text-lg font-bold">
               CareerLog
             </Link>
-            <nav className="flex gap-4 text-sm text-zinc-600 dark:text-zinc-300">
-              <Link href="/" className="hover:text-zinc-900 dark:hover:text-zinc-100">
-                지원 목록
-              </Link>
-              <Link href="/week" className="hover:text-zinc-900 dark:hover:text-zinc-100">
-                주간
-              </Link>
-              <Link href="/stats" className="hover:text-zinc-900 dark:hover:text-zinc-100">
-                통계
-              </Link>
-            </nav>
+            <NavLinks />
           </div>
           <form action={logout}>
             <button type="submit" className="text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100">
