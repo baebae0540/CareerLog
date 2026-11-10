@@ -52,3 +52,8 @@ export const EVENT_KIND_BADGE_CLASS: Record<EventKind, string> = {
   deadline: "bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-300",
   other: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300",
 };
+
+/** 주소의 ?status= 값 → 상태 (모르는 값이면 undefined) */
+export function parseStatus(value: string | string[] | undefined): ApplicationStatus | undefined {
+  return typeof value === "string" && (STATUS_ORDER as string[]).includes(value) ? (value as ApplicationStatus) : undefined;
+}

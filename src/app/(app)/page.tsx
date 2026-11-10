@@ -1,18 +1,11 @@
 import Link from "next/link";
 import { countByStatus, listApplications } from "@/db/queries";
-import { applicationStatus, type ApplicationStatus } from "@/db/schema";
 import { StatusBadge } from "@/components/status-badge";
-import { cardClass, primaryButtonClass } from "@/components/ui";
+import { cardClass, primaryButtonClass, secondaryButtonClass } from "@/components/ui";
 import { isBeforeApplying } from "@/lib/application-input";
 import { formatYmd } from "@/lib/dates";
-import { STATUS_LABEL, STATUS_ORDER } from "@/lib/labels";
+import { parseStatus, STATUS_LABEL, STATUS_ORDER } from "@/lib/labels";
 import { requireLogin } from "@/lib/session";
-
-function parseStatus(value: string | string[] | undefined): ApplicationStatus | undefined {
-  return typeof value === "string" && (applicationStatus.enumValues as string[]).includes(value)
-    ? (value as ApplicationStatus)
-    : undefined;
-}
 
 export default async function ApplicationListPage(props: PageProps<"/">) {
   await requireLogin();
@@ -24,9 +17,21 @@ export default async function ApplicationListPage(props: PageProps<"/">) {
     <section className="flex flex-col gap-6">
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-2xl font-bold">지원 목록</h1>
-        <Link href="/applications/new" className={primaryButtonClass}>
-          + 새 지원
-        </Link>
+        <div className="flex items-center gap-2">
+          {/* 지금 보고 있는 필터 그대로 내려받는다. 다운로드라서 일반 a 태그 */}
+          {items.length > 0 && (
+            <a
+              href={status ? `/applications/export?status=${status}` : "/applications/export"}
+              download
+              className={secondaryButtonClass}
+            >
+              CSV 내보내기
+            </a>
+          )}
+          <Link href="/applications/new" className={primaryButtonClass}>
+            + 새 지원
+          </Link>
+        </div>
       </div>
 
       {/* 상태 필터: 건수가 있는 상태만 보여준다 */}
