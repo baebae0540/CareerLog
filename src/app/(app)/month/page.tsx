@@ -52,11 +52,6 @@ export default async function MonthPage(props: PageProps<"/month">) {
       <Summary summary={summary} />
 
       <MonthCalendar ym={ym} today={today} weeks={weeks} />
-
-      <p className="text-xs text-zinc-500">
-        요약 숫자는 이 달 날짜만 셉니다. 날짜나 &quot;+N개 더&quot;를 누르면 그 주의 주간 화면으로 가고, 날짜 이동(드래그)은
-        주간 화면에서 합니다.
-      </p>
     </section>
   );
 }
